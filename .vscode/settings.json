@@ -1,0 +1,8 @@
+{
+  "cSpell.words": ["fastapi"],
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "python.terminal.activateEnvironment": false
+}
