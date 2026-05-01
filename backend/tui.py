@@ -29,7 +29,9 @@ class StockBar(HorizontalGroup):
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the stock bar."""
-        yield StockName(f"{self.stock.ticker.upper()} {self.stock.price:.2f}")
+        yield StockName(
+            f"{self.stock.ticker.upper()} Current Price: {self.stock.price:.2f} Week Change: {self.stock.change.week:.2f}%"
+        )
 
 
 class GooseApp(App):
