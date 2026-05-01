@@ -30,7 +30,8 @@ class StockBar(HorizontalGroup):
     def compose(self) -> ComposeResult:
         """Create child widgets for the stock bar."""
         yield StockName(
-            f"{self.stock.ticker.upper()} Current Price: {self.stock.price:.2f} Week Change: {self.stock.change.week:.2f}%"
+            f"{self.stock.ticker.upper()} Current Price: {self.stock.price:.2f} Week Change: {self.stock.change.week:.2f}% "
+            f"TTM EPS: {self.stock.earning.eps_ttm:.2f} Forecast EPS: {self.stock.earning.eps_forecast:.2f}"
         )
 
 
