@@ -4,7 +4,7 @@ from sqlmodel import create_engine, Session
 SQLALCHEMY_DATABASE_URL = "sqlite:///./db.sql"  # Adjust the path as needed
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}, echo=False
 )
 
 

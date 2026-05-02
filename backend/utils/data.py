@@ -2,6 +2,16 @@ import yaml
 import yfinance as yf
 from pathlib import Path
 from pydantic.dataclasses import dataclass
+from sqlmodel import Session, create_engine, select
+
+from models import Stock
+from dependencies import SQLALCHEMY_DATABASE_URL
+from .yfinance import get_stock_info
+
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}, echo=True
+)
 
 
 @dataclass
@@ -31,6 +41,40 @@ class StockData:
 
 
 path = Path(__file__).parent
+
+
+def create_stock(ticker: str, name: str, yf_ticker: str | None):
+    """Create a new stock in the database."""
+    stock = Stock(ticker=ticker, name=name, yf_ticker=yf_ticker)
+    with Session(engine) as db:
+        db.add(stock)
+        db.commit()
+        db.refresh(stock)
+    return stock
+
+
+def fetch_stock_data(yf_ticker: str) -> Stock:
+    """Fetch stock data from the database."""
+    with Session(engine) as db:
+        stock = db.exec(
+            select(Stock).where(Stock.yf_ticker == yf_ticker.upper())
+        ).first()
+    if not stock:
+        # If the stock does not exist in the database, fetch it from Yahoo Finance
+        # and add it to the database
+        stock_info = get_stock_info(yf_ticker)
+        # If the stock is not found in Yahoo Finance, raise an exception
+        if not stock_info.name:
+            raise ValueError(
+                f"Stock with ticker {yf_ticker} not found in Yahoo Finance."
+            )
+        stock = create_stock(
+            # Extract the ticker without the exchange suffix
+            ticker=yf_ticker.split(".")[0],
+            name=stock_info.name,
+            yf_ticker=stock_info.yf_ticker,
+        )
+    return stock
 
 
 def read_stock_list() -> list[StockData]:
