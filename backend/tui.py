@@ -2,7 +2,8 @@ from textual.app import App, ComposeResult
 from textual.containers import HorizontalGroup, VerticalScroll
 from textual.widgets import Header, Footer, Static
 
-from utils.data import read_stock_list, StockData
+from utils.data import read_stock_list
+from utils.dataclass import StockData
 
 # TODO: Follow this https://textual.textualize.io/tutorial/
 
@@ -31,7 +32,7 @@ class StockBar(HorizontalGroup):
         """Create child widgets for the stock bar."""
         yield StockName(
             f"{self.stock.ticker.upper()} Current Price: {self.stock.price:.2f} Week Change: {self.stock.change.week:.2f}% "
-            f"TTM EPS: {self.stock.earning.eps_ttm:.2f} Forecast EPS: {self.stock.earning.eps_forecast:.2f}"
+            # f"TTM EPS: {self.stock.earning.eps_ttm:.2f} Forecast EPS: {self.stock.earning.eps_forecast:.2f}"
         )
 
 
@@ -46,6 +47,8 @@ class GooseApp(App):
         """Create child widgets for the app."""
         yield Header()
         yield Footer()
+        # Sort by weekly change
+        self.stocks.sort(key=lambda x: x.change.week, reverse=True)
         yield VerticalScroll(*[StockBar(stock) for stock in self.stocks])
 
 

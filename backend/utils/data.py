@@ -1,46 +1,15 @@
-import yaml
-import yfinance as yf
-from pathlib import Path
-from pydantic.dataclasses import dataclass
+import datetime
 from sqlmodel import Session, create_engine, select
 
-from models import Stock
+import utils.yfinance as yf
+from utils.dataclass import StockChange, StockData
+from models import Stock, StockPrice
 from dependencies import SQLALCHEMY_DATABASE_URL
-from .yfinance import get_stock_info
 
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}, echo=True
 )
-
-
-@dataclass
-class StockChange:
-    week: float | None = None
-    month: float | None = None
-    quarter: float | None = None
-    year: float | None = None
-
-
-@dataclass
-class StockEarning:
-    # Trailing Twelve Months Earnings Per Share
-    eps_ttm: float | None = None
-    # Forecast Earnings Per Share
-    eps_forecast: float | None = None
-
-
-@dataclass
-class StockData:
-    ticker: str
-    yf_ticker: str | None = None
-    yf_data: dict | None = None
-    price: float | None = None
-    change: StockChange | None = None
-    earning: StockEarning | None = None
-
-
-path = Path(__file__).parent
 
 
 def create_stock(ticker: str, name: str, yf_ticker: str | None):
@@ -62,7 +31,7 @@ def fetch_stock_data(yf_ticker: str) -> Stock:
     if not stock:
         # If the stock does not exist in the database, fetch it from Yahoo Finance
         # and add it to the database
-        stock_info = get_stock_info(yf_ticker)
+        stock_info = yf.get_stock_info(yf_ticker)
         # If the stock is not found in Yahoo Finance, raise an exception
         if not stock_info.name:
             raise ValueError(
@@ -77,54 +46,127 @@ def fetch_stock_data(yf_ticker: str) -> Stock:
     return stock
 
 
+def update_stock_price(
+    stock: Stock, start_date: datetime.date | None = None
+) -> StockPrice:
+    """Update the stock price. By default, it will update the price for the current date.
+    If the date is provided, it will update the price from that date to the current date.
+    Return latest price in the database."""
+    # Find the latest price date in the database
+    with Session(engine) as db:
+        latest_price = db.exec(
+            select(StockPrice)
+            .where(StockPrice.stock == stock)
+            .order_by(StockPrice.date.desc())
+        ).first()
+    # Today is the latest weekday
+    today = datetime.date.today()
+    # If today is Saturday or Sunday, set it to the latest Friday
+    if today.weekday() >= 5:
+        today -= datetime.timedelta(days=today.weekday() - 4)
+    # If the start date is provided.
+    if start_date:
+        with Session(engine) as db:
+            oldest_price = db.exec(
+                select(StockPrice)
+                .where(StockPrice.stock == stock)
+                .order_by(StockPrice.date.asc())
+            ).first()
+        # If the oldest price date is after the start date,
+        # fetch the historical data from Yahoo Finance
+        if oldest_price and oldest_price.date > start_date:
+            history = yf.fetch_stock_price(
+                stock.yf_ticker,
+                start_date,
+                oldest_price.date - datetime.timedelta(days=1),
+            )
+        else:
+            # No need to update the price
+            return latest_price
+    # If price history is empty,
+    # fetch 1 year of historical data from Yahoo Finance
+    elif not latest_price:
+        history = yf.fetch_stock_price(
+            stock.yf_ticker, today - datetime.timedelta(days=365)
+        )
+    # If the latest price date is before today,
+    # fetch the historical data from Yahoo Finance
+    elif latest_price and latest_price.date < today:
+        history = yf.fetch_stock_price(
+            stock.yf_ticker, latest_price.date + datetime.timedelta(days=1), today
+        )
+    else:
+        # No need to update the price
+        return latest_price
+    # Update the stock price in the database
+    # If the history is empty due to holiday or other reasons, do nothing
+    if not history.empty:
+        with Session(engine) as db:
+            for date, row in history.iterrows():
+                price = StockPrice(
+                    date=date.date(),
+                    stock_id=stock.id,
+                    # Round the price to 2 decimal places
+                    open=round(row["Open"], 2),
+                    high=round(row["High"], 2),
+                    low=round(row["Low"], 2),
+                    close=round(row["Close"], 2),
+                )
+                db.add(price)
+            db.commit()
+            # Refresh the latest price after updating the database
+            latest_price = db.exec(
+                select(StockPrice)
+                .where(StockPrice.stock == stock)
+                .order_by(StockPrice.date.desc())
+            ).first()
+    return latest_price
+
+
 def read_stock_list() -> list[StockData]:
     """Read the stock list from the YAML file."""
-    with open(path / "stock-list.yml", "r") as fp:
-        stocks = yaml.safe_load(fp)
+    with Session(engine) as db:
+        stocks = db.exec(select(Stock)).all()
 
     data = []
-    # Fetch data from Yahoo Finance
-    for stock in stocks["thai"]:
-        ticker = StockData(ticker=stock)
-        # Stock in Thailand are suffixed with .BK
-        ticker.yf_ticker = f"{stock.upper()}.BK"
-        ticker.yf_data = yf.Ticker(ticker.yf_ticker)
-        ticker.price = ticker.yf_data.info["currentPrice"]
-        ticker.change = calculate_stock_changes(ticker)
-        ticker.earning = calculate_stock_earnings(ticker)
+    for stock in stocks:
+        ticker = StockData(ticker=stock.ticker)
+        ticker.yf_ticker = stock.yf_ticker
+        ticker.price = update_stock_price(stock).close
+        ticker.change = calculate_stock_changes(stock)
         data.append(ticker)
 
     return data
 
 
-def calculate_stock_changes(stock: StockData) -> StockChange:
+def calculate_stock_changes(stock: Stock) -> StockChange:
     """Calculate the stock price changes over different time periods."""
-    # Get the historical price data. The return is a DataFrame
-    history = stock.yf_data.history(period="5d")
+    # Get real-time price from Yahoo Finance
+    price_current = yf.fetch_real_time_price(stock.yf_ticker)
+    # Get latest price from the database
+    today = datetime.date.today()
+    with Session(engine) as db:
+        price_last_week = float(
+            db.exec(
+                select(StockPrice)
+                .where(StockPrice.stock == stock)
+                .where(StockPrice.date <= today - datetime.timedelta(days=7))
+                .order_by(StockPrice.date.desc())
+            )
+            .first()
+            .close  # Use the closing price for the change calculation
+        )
+    # Format the price data to match the StockChange structure
     changes = StockChange()
-    # If the history is empty, return an empty StockChange
-    if history.empty:
-        return changes
-
-    closing_prices = history["Close"].tolist()
     # Calculate week change
-    week_change = (stock.price - closing_prices[0]) / closing_prices[0] * 100
+    week_change = (price_current - price_last_week) / price_last_week * 100
     changes.week = week_change
 
     return changes
 
 
-def calculate_stock_earnings(stock: StockData) -> StockEarning:
-    """Calculate the stock earnings.
-    1. eps_ttm: TTM EPS (Trailing Twelve Months Earnings Per Share): This is the EPS calculated based on the company's earnings over the past 12 months.
-    2. eps_forecast: Forecast EPS (Earnings Per Share): This is the projected EPS for the
-    """
-    ticker_info = stock.yf_data.info
-    earnings = StockEarning()
-    try:
-        earnings.eps_ttm = ticker_info["trailingEps"]
-        earnings.eps_forecast = ticker_info["forwardEps"]
-    except KeyError:
-        pass
-
-    return earnings
+if __name__ == "__main__":
+    with Session(engine) as db:
+        stocks = db.exec(select(Stock)).all()
+        for stock in stocks:
+            update_stock_price(stock, start_date=datetime.date(2025, 1, 1))
