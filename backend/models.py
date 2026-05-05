@@ -1,6 +1,6 @@
 import datetime
 from decimal import Decimal
-from sqlmodel import Relationship, SQLModel, Field
+from sqlmodel import Relationship, SQLModel, Field, Session, select
 
 
 class StockBase(SQLModel):
@@ -15,6 +15,23 @@ class Stock(StockBase, table=True):
     prices: list["StockPrice"] = Relationship(back_populates="stock")
     # Reference to AnalystPriceTarget
     analyst_targets: list["AnalystPriceTarget"] = Relationship(back_populates="stock")
+
+    def get_latest_price_date(self, session: Session) -> datetime.date:
+        """Get the latest price date of the stock from the database."""
+        return session.exec(
+            select(StockPrice.date)
+            .where(StockPrice.stock_id == self.id)
+            .order_by(StockPrice.date.desc())
+        ).first()
+
+    def get_close_price_on_date(self, session: Session, date: datetime.date) -> float:
+        """Get the stock's closing price on a specific date from the database."""
+        return session.exec(
+            select(StockPrice.close)
+            .where(StockPrice.stock_id == self.id)
+            .where(StockPrice.date <= date)
+            .order_by(StockPrice.date.desc())
+        ).first()
 
 
 class StockPriceBase(SQLModel):

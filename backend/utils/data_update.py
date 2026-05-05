@@ -6,7 +6,7 @@ from utils.common import engine
 from models import Stock, StockPrice
 
 
-def create_stock(ticker: str, name: str, yf_ticker: str | None):
+def create_stock(ticker: str, name: str, yf_ticker: str | None) -> Stock:
     """Create a new stock in the database."""
     stock = Stock(ticker=ticker, name=name, yf_ticker=yf_ticker)
     with Session(engine) as db:
@@ -40,24 +40,17 @@ def fetch_stock_data(yf_ticker: str) -> Stock:
     return stock
 
 
-def update_stock_price(
-    stock: Stock, start_date: datetime.date | None = None
-) -> StockPrice:
+def update_stock_price(stock: Stock, start_date: datetime.date | None = None):
     """Update the stock price. By default, it will update the price for the current date.
-    If the date is provided, it will update the price from that date to the current date.
-    Return latest price in the database."""
-    # Find the latest price date in the database
-    with Session(engine) as db:
-        latest_price = db.exec(
-            select(StockPrice)
-            .where(StockPrice.stock == stock)
-            .order_by(StockPrice.date.desc())
-        ).first()
-    # Today is the latest weekday
-    today = datetime.date.today()
-    # If today is Saturday or Sunday, set it to the latest Friday
-    if today.weekday() >= 5:
-        today -= datetime.timedelta(days=today.weekday() - 4)
+    If the date is provided, it will update the price from that date to the current date."""
+    # TODO: Update 1 year of historical price should be automatically done when adding a new stock to the database.
+    # TODO: There should be separated functions, one for manually update with start_date and another one for automatically update the latest price.
+    latest_price_date = stock.get_latest_price_date(Session(engine))
+    # so only need to update database up to yesterday.
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    # If yesterday Saturday or Sunday, set it to the latest Friday
+    if yesterday.weekday() >= 5:
+        yesterday -= datetime.timedelta(days=yesterday.weekday() - 4)
     # If the start date is provided.
     if start_date:
         with Session(engine) as db:
@@ -76,22 +69,22 @@ def update_stock_price(
             )
         else:
             # No need to update the price
-            return latest_price
+            return
     # If price history is empty,
     # fetch 1 year of historical data from Yahoo Finance
-    elif not latest_price:
+    elif not latest_price_date:
         history = yf.fetch_stock_price(
-            stock.yf_ticker, today - datetime.timedelta(days=365)
+            stock.yf_ticker, datetime.date.today() - datetime.timedelta(days=365)
         )
-    # If the latest price date is before today,
+    # If the latest price date is before yesterday,
     # fetch the historical data from Yahoo Finance
-    elif latest_price and latest_price.date < today:
+    elif latest_price_date and latest_price_date < yesterday:
         history = yf.fetch_stock_price(
-            stock.yf_ticker, latest_price.date + datetime.timedelta(days=1), today
+            stock.yf_ticker, latest_price_date + datetime.timedelta(days=1), yesterday
         )
     else:
         # No need to update the price
-        return latest_price
+        return
     # Update the stock price in the database
     # If the history is empty due to holiday or other reasons, do nothing
     if not history.empty:
@@ -108,10 +101,3 @@ def update_stock_price(
                 )
                 db.add(price)
             db.commit()
-            # Refresh the latest price after updating the database
-            latest_price = db.exec(
-                select(StockPrice)
-                .where(StockPrice.stock == stock)
-                .order_by(StockPrice.date.desc())
-            ).first()
-    return latest_price
