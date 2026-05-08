@@ -16,7 +16,7 @@ def get_stock_info(ticker: str) -> StockBase:
     )
 
 
-def fetch_stock_price(ticker: str, start_date: date, end_date: date = date.today()):
+def fetch_stock_price(ticker: str, start_date: date, end_date: date | None = None):
     """Fetch stock price data from yfinance."""
     stock = yf.Ticker(ticker)
     hist = stock.history(start=start_date, end=end_date)
@@ -25,6 +25,7 @@ def fetch_stock_price(ticker: str, start_date: date, end_date: date = date.today
 
 def fetch_real_time_price(ticker: str) -> float | None:
     """Fetch real-time stock price from yfinance."""
+    # TODO: Use fast_info.last_price instead of info.currentPrice
     stock = yf.Ticker(ticker)
     info = stock.info
     return info.get("currentPrice", None)

@@ -28,7 +28,9 @@ def read_stock_list() -> list[StockData]:
 
 def calculate_stock_changes(stock: Stock) -> Tuple[float, StockChange]:
     """Calculate the stock price changes over different time periods."""
+    # TODO: If the latest price in db is up to date, there is no need to fetch new data.
     # Get real-time price from Yahoo Finance
+    # TODO: Real-time price should be from other APIs
     price_current = yf.fetch_real_time_price(stock.yf_ticker)
     today = datetime.date.today()
     price_last_week = float(

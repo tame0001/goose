@@ -65,7 +65,7 @@ def update_stock_price(stock: Stock, start_date: datetime.date | None = None):
             history = yf.fetch_stock_price(
                 stock.yf_ticker,
                 start_date,
-                oldest_price.date - datetime.timedelta(days=1),
+                oldest_price.date,
             )
         else:
             # No need to update the price
@@ -80,7 +80,7 @@ def update_stock_price(stock: Stock, start_date: datetime.date | None = None):
     # fetch the historical data from Yahoo Finance
     elif latest_price_date and latest_price_date < yesterday:
         history = yf.fetch_stock_price(
-            stock.yf_ticker, latest_price_date + datetime.timedelta(days=1), yesterday
+            stock.yf_ticker, latest_price_date + datetime.timedelta(days=1)
         )
     else:
         # No need to update the price
@@ -88,8 +88,11 @@ def update_stock_price(stock: Stock, start_date: datetime.date | None = None):
     # Update the stock price in the database
     # If the history is empty due to holiday or other reasons, do nothing
     if not history.empty:
+        # Need to check, if volume is 0, it means the stock is not traded on that day, so we should not update the price for that day.
         with Session(engine) as db:
             for date, row in history.iterrows():
+                if row["Volume"] == 0:
+                    continue
                 price = StockPrice(
                     date=date.date(),
                     stock_id=stock.id,
