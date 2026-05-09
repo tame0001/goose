@@ -15,6 +15,10 @@ def read_stock_list() -> list[StockData]:
         stocks = db.exec(select(Stock)).all()
 
     data = []
+    # TODO: yf.Download is a better option to minimize the number of API calls
+    # TODO: Create a composite index that combine stock_id and date to speed up the query last price in the database.
+    # TODO: Use Window query to get all latest price in one query instead of querying for each stock separately.
+    # TODO: Calculate change in batch instead of calculating for each stock separately.
     for stock in stocks:
         ticker = StockData(ticker=stock.ticker)
         ticker.yf_ticker = stock.yf_ticker
