@@ -3,6 +3,10 @@ from decimal import Decimal
 from sqlmodel import Relationship, SQLModel, Field, Session, select
 
 
+# TODO: Add field to show 1) industry and sector based of yfinance API,
+# 2) products and services,
+# 3) direct competitors (foreign key to Stock table),
+# 4) supply chain companies (foreign key to Stock table)
 class StockBase(SQLModel):
     ticker: str
     name: str

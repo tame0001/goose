@@ -8,6 +8,12 @@ from utils.data_update import update_stock_price
 from utils.common import engine
 from models import Stock
 
+# TODO: Check price jump
+# TODO: Check when current price last seen
+# TODO: Current price with EPS with similar prices or EPSs other stocks
+# TODO: Check current price with analyst price target and historical price against analyst price target
+# TODO: Check price against EPS
+
 
 def read_stock_list() -> list[StockData]:
     """Read the stock list from the YAML file."""
