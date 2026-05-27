@@ -2,6 +2,8 @@ import datetime
 from decimal import Decimal
 from sqlmodel import Relationship, SQLModel, Field, Session, select
 
+# TODO: Add ESP with option to indicate whether if it is actual or estimated + annual or quarterly.
+
 
 # TODO: Add field to show 1) industry and sector based of yfinance API,
 # 2) products and services,
@@ -70,6 +72,3 @@ class AnalystPriceTarget(AnalystPriceTargetBase, table=True):
     id: int = Field(default=None, primary_key=True)
     # References to Stock
     stock: Stock | None = Relationship(back_populates="analyst_targets")
-
-
-# TODO: Add ESP with option to indicate whether if it is actual or estimated + annual or quarterly.

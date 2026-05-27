@@ -38,20 +38,40 @@ def read_stock_list() -> list[StockData]:
 
 def calculate_stock_changes(stock: Stock) -> Tuple[float, StockChange]:
     """Calculate the stock price changes over different time periods."""
-    # TODO: If the latest price in db is up to date, there is no need to fetch new data.
     # Get real-time price from Yahoo Finance
-    # TODO: Real-time price should be from other APIs
-    price_current = yf.fetch_real_time_price(stock.yf_ticker)
+    # If the latest price in db is up to date, there is no need to fetch new data
+    if stock.get_latest_price_date(Session(engine)) == datetime.date.today():
+        price_current = float(
+            stock.get_close_price_on_date(Session(engine), datetime.date.today())
+        )
+    else:
+        price_current = yf.fetch_real_time_price(stock.yf_ticker)
     today = datetime.date.today()
     price_last_week = float(
         stock.get_close_price_on_date(
             Session(engine), today - datetime.timedelta(days=7)
         )
     )
+    price_last_month = float(
+        stock.get_close_price_on_date(
+            Session(engine), today - datetime.timedelta(days=30)
+        )
+    )
+    price_last_quarter = float(
+        stock.get_close_price_on_date(
+            Session(engine), today - datetime.timedelta(days=90)
+        )
+    )
+    price_last_year = float(
+        stock.get_close_price_on_date(
+            Session(engine), today - datetime.timedelta(days=365)
+        )
+    )
     # Format the price data to match the StockChange structure
     changes = StockChange()
-    # Calculate week change
-    week_change = (price_current - price_last_week) / price_last_week * 100
-    changes.week = week_change
+    changes.week = (price_current - price_last_week) / price_last_week * 100
+    changes.month = (price_current - price_last_month) / price_last_month * 100
+    changes.quarter = (price_current - price_last_quarter) / price_last_quarter * 100
+    changes.year = (price_current - price_last_year) / price_last_year * 100
 
     return price_current, changes
