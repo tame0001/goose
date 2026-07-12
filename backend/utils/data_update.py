@@ -40,13 +40,13 @@ def fetch_stock_data(yf_ticker: str) -> Stock:
     return stock
 
 
-def update_stock_price(stock: Stock, start_date: datetime.date | None = None):
+def update_stock_price(session: Session, stock: Stock, start_date: datetime.date | None = None):
     """Update the stock price. By default, it will update the price for the current date.
     If the date is provided, it will update the price from that date to the current date."""
     # TODO: For today price, only put in the database when the market is closed.
     # TODO: Update 1 year of historical price should be automatically done when adding a new stock to the database.
     # TODO: There should be separated functions, one for manually update with start_date and another one for automatically update the latest price.
-    latest_price_date = stock.get_latest_price_date(Session(engine))
+    latest_price_date = stock.get_latest_price_date(session)
     # so only need to update database up to yesterday.
     yesterday = datetime.date.today() - datetime.timedelta(days=1)
     # If yesterday Saturday or Sunday, set it to the latest Friday

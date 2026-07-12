@@ -20,51 +20,51 @@ def read_stock_list() -> list[StockData]:
     with Session(engine) as db:
         stocks = db.exec(select(Stock)).all()
 
-    data = []
-    # TODO: yf.Download is a better option to minimize the number of API calls
-    # TODO: Create a composite index that combine stock_id and date to speed up the query last price in the database.
-    # TODO: Use Window query to get all latest price in one query instead of querying for each stock separately.
-    # TODO: Calculate change in batch instead of calculating for each stock separately.
-    for stock in stocks:
-        ticker = StockData(ticker=stock.ticker)
-        ticker.yf_ticker = stock.yf_ticker
-        # Update historical price data in the database
-        update_stock_price(stock)
-        ticker.price, ticker.change = calculate_stock_changes(stock)
-        data.append(ticker)
+        data = []
+        # TODO: yf.Download is a better option to minimize the number of API calls
+        # TODO: Create a composite index that combine stock_id and date to speed up the query last price in the database.
+        # TODO: Use Window query to get all latest price in one query instead of querying for each stock separately.
+        # TODO: Calculate change in batch instead of calculating for each stock separately.
+        for stock in stocks:
+            ticker = StockData(ticker=stock.ticker)
+            ticker.yf_ticker = stock.yf_ticker
+            # Update historical price data in the database
+            update_stock_price(db, stock)
+            ticker.price, ticker.change = calculate_stock_changes(db, stock)
+            data.append(ticker)
 
     return data
 
 
-def calculate_stock_changes(stock: Stock) -> Tuple[float, StockChange]:
+def calculate_stock_changes(session: Session, stock: Stock) -> Tuple[float, StockChange]:
     """Calculate the stock price changes over different time periods."""
     # Get real-time price from Yahoo Finance
     # If the latest price in db is up to date, there is no need to fetch new data
-    if stock.get_latest_price_date(Session(engine)) == datetime.date.today():
+    if stock.get_latest_price_date(session) == datetime.date.today():
         price_current = float(
-            stock.get_close_price_on_date(Session(engine), datetime.date.today())
+            stock.get_close_price_on_date(session, datetime.date.today())
         )
     else:
         price_current = yf.fetch_real_time_price(stock.yf_ticker)
     today = datetime.date.today()
     price_last_week = float(
         stock.get_close_price_on_date(
-            Session(engine), today - datetime.timedelta(days=7)
+            session, today - datetime.timedelta(days=7)
         )
     )
     price_last_month = float(
         stock.get_close_price_on_date(
-            Session(engine), today - datetime.timedelta(days=30)
+            session, today - datetime.timedelta(days=30)
         )
     )
     price_last_quarter = float(
         stock.get_close_price_on_date(
-            Session(engine), today - datetime.timedelta(days=90)
+            session, today - datetime.timedelta(days=90)
         )
     )
     price_last_year = float(
         stock.get_close_price_on_date(
-            Session(engine), today - datetime.timedelta(days=365)
+            session, today - datetime.timedelta(days=365)
         )
     )
     # Format the price data to match the StockChange structure
@@ -75,3 +75,4 @@ def calculate_stock_changes(stock: Stock) -> Tuple[float, StockChange]:
     changes.year = (price_current - price_last_year) / price_last_year * 100
 
     return price_current, changes
+
