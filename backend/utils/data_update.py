@@ -2,7 +2,7 @@ import datetime
 from sqlmodel import Session, select
 
 import utils.yfinance as yf
-from utils.common import engine
+from dependencies import engine
 from models import Stock, StockPrice
 
 

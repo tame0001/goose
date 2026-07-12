@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 import utils.yfinance as yf
 from utils.dataclass import StockChange, StockData
 from utils.data_update import update_stock_price
-from utils.common import engine
+from dependencies import engine
 from models import Stock
 
 # TODO: Check price jump
