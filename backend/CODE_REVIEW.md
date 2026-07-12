@@ -39,23 +39,11 @@ For 8 stocks, this is **easily 50+ DB queries** plus network calls, all sequenti
 
 ## 🟢 Minor / Quality-of-Life
 
-### 6. Ruff `target-version` Mismatch
-[ruff.toml](file:///home/tam/github/goose/backend/ruff.toml#L37) targets `py310`, but [pyproject.toml](file:///home/tam/github/goose/backend/pyproject.toml#L6) requires `>=3.12`. They should match (`py312`).
-
-### 7. FastAPI App Has No Routes Beyond "Hello World"
+### 6. FastAPI App Has No Routes Beyond "Hello World"
 [main.py](file:///home/tam/github/goose/backend/main.py) only has a root endpoint returning `{"message": "Hello World"}`. The actual functionality is all in the TUI path. If FastAPI is intended to serve data, consider adding stock endpoints; otherwise, you could drop it to simplify.
 
-### 8. `calculate_stock_earnings` References a Non-Existent Attribute
-[yfinance.py L39](file:///home/tam/github/goose/backend/utils/yfinance.py#L39) accesses `stock.yf_data.info`, but `StockData` has no `yf_data` attribute. This function would crash if called.
-
-### 9. `fetch_real_time_price` TODO
+### 7. `fetch_real_time_price` TODO
 [yfinance.py L28](file:///home/tam/github/goose/backend/utils/yfinance.py#L28) notes `fast_info.last_price` should be used instead of `info.currentPrice`. `fast_info` is significantly faster since it avoids the full `info` API call.
-
-### 10. Missing `__init__.py` Typing / Imports
-Both [backend/\_\_init\_\_.py](file:///home/tam/github/goose/backend/__init__.py) and [utils/\_\_init\_\_.py](file:///home/tam/github/goose/backend/utils/__init__.py) are empty, which is fine, but consider adding `__all__` exports if the package grows.
-
-### 11. Shell Script Uses Hardcoded Path
-[goose.sh](file:///home/tam/github/goose/backend/goose.sh#L4) hardcodes `$HOME/github/goose/backend`. Using `"$(dirname "$0")"` would make it portable.
 
 ---
 
@@ -64,9 +52,6 @@ Both [backend/\_\_init\_\_.py](file:///home/tam/github/goose/backend/__init__.py
 | Priority | Issue | Effort |
 |----------|-------|--------|
 | 🔴 P0 | Add null/zero guards for price change calculations | Small |
-| 🟡 P1 | Fix broken `calculate_stock_earnings` (dead `yf_data` attr) | Small |
-| 🟡 P1 | Fix ruff `target-version` → `py312` | Trivial |
 | 🟡 P1 | Batch price queries (N+1 problem) | Medium |
 | 🟢 P2 | Use `fast_info.last_price` | Small |
 | 🟢 P2 | Remove dead files (`etf.py`, `stock-list.yml`) or implement them | Trivial |
-| 🟢 P2 | Make `goose.sh` portable | Trivial |

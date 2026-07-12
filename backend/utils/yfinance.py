@@ -36,12 +36,16 @@ def calculate_stock_earnings(stock: StockData) -> StockEarning:
     1. eps_ttm: TTM EPS (Trailing Twelve Months Earnings Per Share): This is the EPS calculated based on the company's earnings over the past 12 months.
     2. eps_forecast: Forecast EPS (Earnings Per Share): This is the projected EPS for the
     """
-    ticker_info = stock.yf_data.info
     earnings = StockEarning()
+    if not stock.yf_ticker:
+        return earnings
+
     try:
-        earnings.eps_ttm = ticker_info["trailingEps"]
-        earnings.eps_forecast = ticker_info["forwardEps"]
-    except KeyError:
+        ticker = yf.Ticker(stock.yf_ticker)
+        ticker_info = ticker.info
+        earnings.eps_ttm = ticker_info.get("trailingEps")
+        earnings.eps_forecast = ticker_info.get("forwardEps")
+    except Exception:
         pass
 
     return earnings
