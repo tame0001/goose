@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 
 import utils.yfinance as yf
 from dependencies import engine
-from models import Stock, StockPrice
+from models import Stock, StockPrice, get_latest_price_date
 
 
 def create_stock(ticker: str, name: str, yf_ticker: str | None) -> Stock:
@@ -46,7 +46,7 @@ def update_stock_price(session: Session, stock: Stock, start_date: datetime.date
     # TODO: For today price, only put in the database when the market is closed.
     # TODO: Update 1 year of historical price should be automatically done when adding a new stock to the database.
     # TODO: There should be separated functions, one for manually update with start_date and another one for automatically update the latest price.
-    latest_price_date = stock.get_latest_price_date(session)
+    latest_price_date = get_latest_price_date(session, stock.id)
     # so only need to update database up to yesterday.
     yesterday = datetime.date.today() - datetime.timedelta(days=1)
     # If yesterday Saturday or Sunday, set it to the latest Friday

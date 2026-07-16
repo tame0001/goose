@@ -6,7 +6,7 @@ import utils.yfinance as yf
 from utils.dataclass import StockChange, StockData
 from utils.data_update import update_stock_price
 from dependencies import engine
-from models import Stock
+from models import Stock, get_latest_price_date, get_close_price_on_date
 
 # TODO: Check price jump
 # TODO: Check when current price last seen
@@ -40,31 +40,31 @@ def calculate_stock_changes(session: Session, stock: Stock) -> Tuple[float, Stoc
     """Calculate the stock price changes over different time periods."""
     # Get real-time price from Yahoo Finance
     # If the latest price in db is up to date, there is no need to fetch new data
-    if stock.get_latest_price_date(session) == datetime.date.today():
+    if get_latest_price_date(session, stock.id) == datetime.date.today():
         price_current = float(
-            stock.get_close_price_on_date(session, datetime.date.today())
+            get_close_price_on_date(session, stock.id, datetime.date.today())
         )
     else:
         price_current = yf.fetch_real_time_price(stock.yf_ticker)
     today = datetime.date.today()
     price_last_week = float(
-        stock.get_close_price_on_date(
-            session, today - datetime.timedelta(days=7)
+        get_close_price_on_date(
+            session, stock.id, today - datetime.timedelta(days=7)
         )
     )
     price_last_month = float(
-        stock.get_close_price_on_date(
-            session, today - datetime.timedelta(days=30)
+        get_close_price_on_date(
+            session, stock.id, today - datetime.timedelta(days=30)
         )
     )
     price_last_quarter = float(
-        stock.get_close_price_on_date(
-            session, today - datetime.timedelta(days=90)
+        get_close_price_on_date(
+            session, stock.id, today - datetime.timedelta(days=90)
         )
     )
     price_last_year = float(
-        stock.get_close_price_on_date(
-            session, today - datetime.timedelta(days=365)
+        get_close_price_on_date(
+            session, stock.id, today - datetime.timedelta(days=365)
         )
     )
     # Format the price data to match the StockChange structure

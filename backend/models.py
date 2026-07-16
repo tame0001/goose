@@ -22,23 +22,6 @@ class Stock(StockBase, table=True):
     # Reference to AnalystPriceTarget
     analyst_targets: list["AnalystPriceTarget"] = Relationship(back_populates="stock")
 
-    def get_latest_price_date(self, session: Session) -> datetime.date:
-        """Get the latest price date of the stock from the database."""
-        return session.exec(
-            select(StockPrice.date)
-            .where(StockPrice.stock_id == self.id)
-            .order_by(StockPrice.date.desc())
-        ).first()
-
-    def get_close_price_on_date(self, session: Session, date: datetime.date) -> float:
-        """Get the stock's closing price on a specific date from the database."""
-        return session.exec(
-            select(StockPrice.close)
-            .where(StockPrice.stock_id == self.id)
-            .where(StockPrice.date <= date)
-            .order_by(StockPrice.date.desc())
-        ).first()
-
 
 class StockPriceBase(SQLModel):
     date: datetime.date
@@ -72,3 +55,22 @@ class AnalystPriceTarget(AnalystPriceTargetBase, table=True):
     id: int = Field(default=None, primary_key=True)
     # References to Stock
     stock: Stock | None = Relationship(back_populates="analyst_targets")
+
+
+def get_latest_price_date(session: Session, stock_id: int) -> datetime.date | None:
+    """Get the latest price date of the stock from the database."""
+    return session.exec(
+        select(StockPrice.date)
+        .where(StockPrice.stock_id == stock_id)
+        .order_by(StockPrice.date.desc())
+    ).first()
+
+
+def get_close_price_on_date(session: Session, stock_id: int, date: datetime.date) -> float | None:
+    """Get the stock's closing price on a specific date from the database."""
+    return session.exec(
+        select(StockPrice.close)
+        .where(StockPrice.stock_id == stock_id)
+        .where(StockPrice.date <= date)
+        .order_by(StockPrice.date.desc())
+    ).first()
