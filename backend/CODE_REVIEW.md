@@ -26,20 +26,12 @@ For 8 stocks, this is **easily 50+ DB queries** plus network calls, all sequenti
 > [!IMPORTANT]
 > **Quick win:** Use a single session for the whole `read_stock_list` flow and batch the price lookups with a window function, as your TODO suggests.
 
-### 3. `stock-list.yml` is Unused
-[stock-list.yml](file:///home/tam/github/goose/backend/utils/stock-list.yml) exists but is never read by any code. The stocks come from the database now. Either remove it or use it as a seed file.
-
-### 4. `etf.py` is an Empty Placeholder
-[etf.py](file:///home/tam/github/goose/backend/utils/etf.py) has only TODO comments. Either implement it or remove it from the repo to reduce clutter.
-
----
-
 ## 🟢 Minor / Quality-of-Life
 
-### 5. FastAPI App Has No Routes Beyond "Hello World"
+### 3. FastAPI App Has No Routes Beyond "Hello World"
 [main.py](file:///home/tam/github/goose/backend/main.py) only has a root endpoint returning `{"message": "Hello World"}`. The actual functionality is all in the TUI path. If FastAPI is intended to serve data, consider adding stock endpoints; otherwise, you could drop it to simplify.
 
-### 6. `fetch_real_time_price` TODO
+### 4. `fetch_real_time_price` TODO
 [yfinance.py L28](file:///home/tam/github/goose/backend/utils/yfinance.py#L28) notes `fast_info.last_price` should be used instead of `info.currentPrice`. `fast_info` is significantly faster since it avoids the full `info` API call.
 
 ---
@@ -51,4 +43,3 @@ For 8 stocks, this is **easily 50+ DB queries** plus network calls, all sequenti
 | 🔴 P0 | Add null/zero guards for price change calculations | Small |
 | 🟡 P1 | Batch price queries (N+1 problem) | Medium |
 | 🟢 P2 | Use `fast_info.last_price` | Small |
-| 🟢 P2 | Remove dead files (`etf.py`, `stock-list.yml`) or implement them | Trivial |
