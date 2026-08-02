@@ -1,14 +1,7 @@
-from fastapi import FastAPI
+from app.main import app
 
-from tui import terminal_ui
-
-app = FastAPI()
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
+__all__ = ["app"]
 
 if __name__ == "__main__":
-    terminal_ui()
+    import uvicorn
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
