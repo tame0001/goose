@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Shared schemas and contracts for Goose application"
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic>=2.0,<3.0",
+    "pydantic~=2.14.0",
 ]
 
 [build-system]
