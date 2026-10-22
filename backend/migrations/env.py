@@ -4,9 +4,9 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from sqlmodel import SQLModel
+sfrom sqlmodel import SQLModel
 from dependencies import SQLALCHEMY_DATABASE_URL
-from models import Stock
+from models import AnalystPriceTarget, Stock, StockDividend, StockPrice
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
