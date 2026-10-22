@@ -1,6 +1,6 @@
 import datetime
 from decimal import Decimal
-from sqlmodel import Field, Index, Relationship, SQLModel, Session, UniqueConstraint, select
+from sqlmodel import Field, Index, Relationship, SQLModel, UniqueConstraint
 
 
 # TODO: Add field to show 
@@ -66,7 +66,7 @@ class Stock(StockBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     created_at: datetime.datetime = Field(
-        default_factory=datetime.datetime.utcnow,
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc),
         description="Timestamp when stock was added to database",
     )
 
@@ -171,23 +171,3 @@ class AnalystPriceTarget(AnalystPriceTargetBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     stock: Stock | None = Relationship(back_populates="analyst_targets")
-
-
-# Helper Query Functions
-def get_latest_price_date(session: Session, stock_id: int) -> datetime.date | None:
-    """Get the latest price date of the stock from the database."""
-    return session.exec(
-        select(StockPrice.date)
-        .where(StockPrice.stock_id == stock_id)
-        .order_by(StockPrice.date.desc())
-    ).first()
-
-
-def get_close_price_on_date(session: Session, stock_id: int, date: datetime.date) -> float | None:
-    """Get the stock's closing price on a specific date from the database."""
-    return session.exec(
-        select(StockPrice.close)
-        .where(StockPrice.stock_id == stock_id)
-        .where(StockPrice.date <= date)
-        .order_by(StockPrice.date.desc())
-    ).first()

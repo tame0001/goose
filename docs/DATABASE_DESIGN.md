@@ -162,10 +162,11 @@ All endpoints are hosted under `/api/v1` and return JSON.
 | Method | Path | Description |
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/stocks` | List all tracked stocks with current prices & performance metrics. |
-| `POST` | `/api/v1/stocks` | Register a new stock to the watchlist. |
+| `POST` | `/api/v1/stocks` | Register a new stock to the watchlist (auto-syncs 1 year of history). |
+| `POST` | `/api/v1/stocks/sync` | Incrementally sync OHLCV & dividends (all active or single `?yf_ticker=...`). |
 | `GET` | `/api/v1/stocks/{yf_ticker}` | Retrieve details for a single stock by `yf_ticker` (e.g. `AAPL`, `PTT.BK`). |
-| `GET` | `/api/v1/stocks/{yf_ticker}/prices` | *(Draft)* Retrieve historical daily OHLCV prices with date range filtering. |
-| `GET` | `/api/v1/stocks/{yf_ticker}/dividends` | *(Draft)* Retrieve historical dividend distributions for a stock. |
+| `GET` | `/api/v1/stocks/{yf_ticker}/prices` | Retrieve daily historical OHLCV prices (`?start_date=...&end_date=...`). |
+| `GET` | `/api/v1/stocks/{yf_ticker}/dividends` | Retrieve historical dividend distributions for a stock. |
 
 ---
 

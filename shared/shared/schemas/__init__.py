@@ -9,6 +9,7 @@ from shared.schemas.price import (
     StockPriceResponse,
 )
 from shared.schemas.stock import StockBaseSchema, StockCreateRequest, StockResponse
+from shared.schemas.sync import StockSyncResult, StockSyncSummary
 
 __all__ = [
     "StockBaseSchema",
@@ -20,4 +21,6 @@ __all__ = [
     "StockEarningResponse",
     "StockPriceResponse",
     "StockResponse",
+    "StockSyncResult",
+    "StockSyncSummary",
 ]
