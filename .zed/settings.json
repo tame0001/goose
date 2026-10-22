@@ -1,0 +1,16 @@
+{
+  "lsp": {
+    "pyright": {
+      "settings": {
+        "python": {
+          "analysis": {
+            "extraPaths": ["shared", "backend"],
+            "diagnosticSeverityOverrides": {
+              "reportMissingTypeStubs": "none"
+            }
+          }
+        }
+      }
+    }
+  }
+}

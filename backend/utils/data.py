@@ -1,5 +1,4 @@
 import datetime
-from typing import Tuple
 from sqlmodel import Session, select
 
 import utils.yfinance as yf
@@ -36,7 +35,7 @@ def read_stock_list() -> list[StockData]:
     return data
 
 
-def calculate_stock_changes(session: Session, stock: Stock) -> Tuple[float, StockChange]:
+def calculate_stock_changes(session: Session, stock: Stock) -> tuple[float, StockChange]:
     """Calculate the stock price changes over different time periods."""
     # Get real-time price from Yahoo Finance
     # If the latest price in db is up to date, there is no need to fetch new data

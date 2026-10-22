@@ -1,5 +1,4 @@
 import datetime
-from typing import Tuple
 from sqlmodel import Session, desc, or_, select
 
 from models import Stock, StockPrice
@@ -45,7 +44,7 @@ def _pct_change(current: float | None, previous: float | None) -> float | None:
     return (current - previous) / previous * 100
 
 
-def calculate_stock_changes(session: Session, stock: Stock) -> Tuple[float | None, StockChangeResponse]:
+def calculate_stock_changes(session: Session, stock: Stock) -> tuple[float | None, StockChangeResponse]:
     """Calculate the stock price changes over different time periods using local database records."""
     assert stock.id is not None
 
