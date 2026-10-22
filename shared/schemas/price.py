@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -11,6 +12,8 @@ class StockPriceResponse(BaseModel):
     high: Decimal
     low: Decimal
     close: Decimal
+    adj_close: Decimal
+    volume: int
 
 
 class StockChangeResponse(BaseModel):

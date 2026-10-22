@@ -1,5 +1,7 @@
 import os
+
 import httpx
+
 from shared.schemas.stock import StockResponse
 
 
@@ -16,7 +18,7 @@ class GooseAPIClient:
             response.raise_for_status()
             data = response.json()
             return [StockResponse.model_validate(item) for item in data]
-        except Exception as e:
+        except httpx.HTTPError as e:
             # Fallback or empty list on connection error
             print(f"[TUI Client] Failed to fetch stocks from backend: {e}")
             return []

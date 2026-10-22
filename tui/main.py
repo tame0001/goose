@@ -1,8 +1,8 @@
+from api_client import GooseAPIClient
 from textual.app import App, ComposeResult
 from textual.containers import HorizontalGroup, VerticalScroll
 from textual.widgets import Footer, Header, Static
 
-from api_client import GooseAPIClient
 from shared.schemas.stock import StockResponse
 
 
