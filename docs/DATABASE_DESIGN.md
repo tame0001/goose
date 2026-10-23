@@ -1,6 +1,8 @@
-# Database & API Design Specification: Goose
+# Database Design Specification: Goose
 
-This document details the database schema, relational structure, design rationale, and the preliminary REST API contract for the **Goose** multi-client financial application.
+This document details the database schema, relational structure, design rationale, and SQLite storage configuration for the **Goose** financial platform.
+
+For the HTTP endpoints, request/response models, and sync pipeline details, see [**API Design Specification (`docs/API_DESIGN.md`)**](API_DESIGN.md).
 
 ---
 
@@ -8,8 +10,8 @@ This document details the database schema, relational structure, design rational
 
 In accordance with our multi-client architecture:
 * **Database Models (`backend/models.py`)**: Defined via **SQLModel** (`table=True`). Owned strictly by the backend to manage SQLite persistence, indexing, migrations (Alembic), and relational integrity.
-* **API Schemas (`shared/schemas/`)**: Defined via **Pydantic** (`BaseModel`). Shared across the backend, Python TUI, and serving as the blueprint for Angular TypeScript interfaces (`.ts`).
-* **Clients never connect directly to the database**. All client interaction flows through the FastAPI REST server.
+* **API Schemas (`shared/shared/schemas/`)**: Defined via **Pydantic** (`BaseModel`). Shared across the backend and Python TUI, and serving as the blueprint for Angular TypeScript interfaces (`.ts`).
+* **Clients never connect directly to the database**. All client interaction flows through the FastAPI REST server. See [API_DESIGN.md](API_DESIGN.md).
 
 ---
 
@@ -32,6 +34,8 @@ erDiagram
         string sector "GICS Sector (e.g. Technology, Energy)"
         string industry "GICS Industry (e.g. Consumer Electronics)"
         boolean is_active "Tracking status"
+        decimal latest_price "Latest price quote or settled close"
+        datetime latest_price_update_at "Timestamp of latest quote update"
         datetime created_at "Registration timestamp"
     }
 
@@ -87,6 +91,8 @@ The master registry of tracked companies across US and international markets.
 | `sector` | `VARCHAR(100)` | `NULLABLE` | GICS economic sector (used for portfolio sector caps). |
 | `industry` | `VARCHAR(100)` | `NULLABLE` | GICS industry classification. |
 | `is_active` | `BOOLEAN` | `DEFAULT TRUE` | Allows pausing price syncs without deleting historical data. |
+| `latest_price` | `NUMERIC(10, 2)` | `NULLABLE` | Latest recorded price quote or settled closing price. |
+| `latest_price_update_at` | `DATETIME` | `NULLABLE` | Timestamp of the latest price quote update. |
 | `created_at` | `DATETIME` | `DEFAULT UTC` | Audit timestamp. |
 
 * **Table Constraints**:
@@ -151,95 +157,24 @@ Discrete corporate cash dividend distributions.
    * Raw `close` is necessary for reflecting exact historical trading quotes.
    * `adj_close` adjusts backwards for stock splits (e.g., 2-for-1 or 10-for-1 splits) and dividend distributions. Without `adj_close`, historical return calculations and technical indicators produce false drops.
 
----
+4. **Why `latest_price` on the `Stock` Table (Intraday vs. Settled History)?**
+   * The `stock_price` table strictly stores **settled, finalized daily historical bars** after market close. Intraday partial candles (incomplete volumes, evolving highs/lows) are never written to `stock_price`.
+   * Storing `latest_price` and `latest_price_update_at` directly on `Stock` enables real-time quote updates during active market hours with a single row update, eliminating database write churn and query joins.
 
-## 5. Preliminary REST API Design
-
-All endpoints are hosted under `/api/v1` and return JSON.
-
-### Endpoints Overview
-
-| Method | Path | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/v1/stocks` | List all tracked stocks with current prices & performance metrics. |
-| `POST` | `/api/v1/stocks` | Register a new stock to the watchlist (auto-syncs 1 year of history). |
-| `POST` | `/api/v1/stocks/sync` | Incrementally sync OHLCV & dividends (all active or single `?yf_ticker=...`). |
-| `GET` | `/api/v1/stocks/{yf_ticker}` | Retrieve details for a single stock by `yf_ticker` (e.g. `AAPL`, `PTT.BK`). |
-| `GET` | `/api/v1/stocks/{yf_ticker}/prices` | Retrieve daily historical OHLCV prices (`?start_date=...&end_date=...`). |
-| `GET` | `/api/v1/stocks/{yf_ticker}/dividends` | Retrieve historical dividend distributions for a stock. |
+5. **Hardcoded Market Hours & Future Expansion Note**:
+   * Currently, Goose focuses exclusively on two markets:
+     * **Thailand (SET)**: `Asia/Bangkok` (UTC+7), `10:00 - 16:30` ICT (lunch break ignored).
+     * **United States (NYSE / NASDAQ)**: `America/New_York` (UTC-5 / UTC-4), `09:30 - 16:00` EDT/EST.
+   * Market schedules and timezone logic are maintained cleanly in code ([`backend/app/core/market.py`](file:///home/tam/github/goose/backend/app/core/market.py)) rather than an `Exchange` database table to keep the schema lightweight and avoid manual holiday maintenance.
+   * > [!IMPORTANT]
+   * > **Future Expansion Reconsideration**: If Goose expands to support additional countries or stock exchanges in the future, this architectural decision must be reconsidered to introduce dedicated `exchange` and `exchange_holiday` database tables with dynamic scheduling.
 
 ---
 
-### Request / Response Schemas
+## 5. REST API Integration
 
-#### `POST /api/v1/stocks` (Create Stock)
-**Request Body**:
-```json
-{
-  "ticker": "PTT",
-  "name": "PTT Public Company Limited",
-  "yf_ticker": "PTT.BK",
-  "country": "THAILAND",
-  "exchange": "SET",
-  "currency": "THB",
-  "sector": "Energy",
-  "industry": "Oil & Gas Integrated",
-  "is_active": true
-}
-```
+All client operations interact with the database exclusively through the FastAPI backend server. 
 
-**Response (201 Created)**:
-```json
-{
-  "id": 1,
-  "ticker": "PTT",
-  "name": "PTT Public Company Limited",
-  "yf_ticker": "PTT.BK",
-  "country": "THAILAND",
-  "exchange": "SET",
-  "currency": "THB",
-  "sector": "Energy",
-  "industry": "Oil & Gas Integrated",
-  "is_active": true,
-  "created_at": "2026-10-22T14:20:00Z",
-  "price": 32.50,
-  "change": {
-    "week": 1.25,
-    "month": -0.80,
-    "quarter": 4.50,
-    "year": 8.20
-  },
-  "earning": null
-}
-```
+For the complete endpoint specifications, JSON payload examples, status codes, and query parameters, see:
+👉 [**Goose REST API Specification (`docs/API_DESIGN.md`)**](API_DESIGN.md)
 
-#### `GET /api/v1/stocks/{yf_ticker}/prices` *(Draft for Next Phase)*
-Query parameters: `?start_date=2026-01-01&end_date=2026-10-22`
-```json
-[
-  {
-    "date": "2026-10-22",
-    "open": "32.00",
-    "high": "32.75",
-    "low": "31.75",
-    "close": "32.50",
-    "adj_close": "32.50",
-    "volume": 45120300
-  }
-]
-```
-
-#### `GET /api/v1/stocks/{yf_ticker}/dividends` *(Draft for Next Phase)*
-```json
-[
-  {
-    "id": 10,
-    "stock_id": 1,
-    "ex_date": "2026-09-04",
-    "payment_date": "2026-09-20",
-    "record_date": "2026-09-05",
-    "amount": "0.80",
-    "currency": "THB"
-  }
-]
-```

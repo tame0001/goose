@@ -1,9 +1,8 @@
 from api_client import GooseAPIClient
+from shared.schemas.stock import StockResponse
 from textual.app import App, ComposeResult
 from textual.containers import HorizontalGroup, VerticalScroll
 from textual.widgets import Footer, Header, Static
-
-from shared.schemas.stock import StockResponse
 
 
 class StockName(Static):
@@ -28,7 +27,7 @@ class StockBar(HorizontalGroup):
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the stock bar."""
-        price = f"{self.stock.price:.2f}" if self.stock.price is not None else "N/A"
+        price = f"{self.stock.latest_price:.2f}" if self.stock.latest_price is not None else "N/A"
         week = (
             f"{self.stock.change.week:.2f}%"
             if self.stock.change and self.stock.change.week is not None

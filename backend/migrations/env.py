@@ -4,7 +4,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-sfrom sqlmodel import SQLModel
+from sqlmodel import SQLModel
 from dependencies import SQLALCHEMY_DATABASE_URL
 from models import AnalystPriceTarget, Stock, StockDividend, StockPrice
 

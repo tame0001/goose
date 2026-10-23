@@ -1,42 +1,51 @@
-# Project Structure Proposal: Goose
+# Project Structure Specification: Goose
 
-This document proposes a multi-client architecture for the Goose application. The goal is to establish **FastAPI** as the single source of truth for database access, with both the **Textual TUI** (for development) and the **Angular Web App** (for production) acting as client applications consuming backend API endpoints.
+This document details the multi-client architecture and repository layout for the Goose application. **FastAPI** serves as the single source of truth for database access, with both the **Textual TUI** (for development and rapid inspection) and the **Angular Web App** (for production) acting as client applications consuming backend API endpoints.
 
 ---
 
-## Proposed Directory Layout
+## Workspace Directory Layout
 
 ```
 goose/
-├── shared/                    # Shared Python package (API contract)
-│   ├── schemas/               # Pydantic response/request models
-│   │   ├── stock.py           # StockResponse, StockCreate, etc.
-│   │   └── price.py           # StockPriceResponse, etc.
-│   ├── enums.py               # Shared enums (Exchange, Currency, etc.)
-│   └── pyproject.toml         # Minimal package definition (name: goose-shared)
+├── docs/                      # Architectural & design specifications
+│   ├── API_DESIGN.md          # REST API endpoints, schemas, and sync specifications
+│   ├── DATABASE_DESIGN.md     # Relational schema, ER diagram, and SQLite configuration
+│   ├── PROJECT_STRUCTURE.md   # Multi-client workspace layout (this document)
+│   └── CODE_REVIEW.md         # Historical backend audit and technical debt log
 │
-├── backend/                   # FastAPI REST API & Database server
+├── shared/                    # Shared Python package (goose-shared)
+│   ├── shared/
+│   │   ├── schemas/           # Pydantic response/request models
+│   │   │   ├── stock.py       # StockBaseSchema, StockCreateRequest, StockResponse
+│   │   │   ├── price.py       # StockPriceResponse, StockChangeResponse
+│   │   │   ├── dividend.py    # StockDividendResponse, StockDividendCreate
+│   │   │   └── sync.py        # StockSyncResult, StockSyncSummary
+│   │   ├── enums.py           # Shared enumerations (Exchange, Currency, etc.)
+│   │   └── __init__.py
+│   └── pyproject.toml         # Package definition (name: goose-shared)
+│
+├── backend/                   # FastAPI REST API & Database server (goose-backend)
 │   ├── app/                   # Server codebase
-│   │   ├── api/               # API Router and Endpoints
-│   │   │   ├── endpoints/     # Feature-specific endpoints (stocks, prices, targets)
-│   │   │   └── deps.py        # Shared dependencies (get_db session injection)
-│   │   ├── core/              # Global configuration
+│   │   ├── api/               # API router and endpoints (/api/v1/stocks)
+│   │   ├── core/              # Global configuration & SQLite database engine
 │   │   │   ├── config.py      # Env vars & settings (DATABASE_URL, SQL_ECHO, etc.)
-│   │   │   └── database.py    # Engine & session factory (replaces dependencies.py)
-│   │   ├── crud/              # Database operations (Create, Read, Update, Delete)
-│   │   ├── models/            # SQLModel table definitions
-│   │   ├── services/          # Third-party integrations (yfinance, background workers)
+│   │   │   └── database.py    # Engine (WAL mode, busy timeout) & get_db generator
+│   │   ├── crud/              # Database operations (crud/stock.py)
+│   │   ├── services/          # Business logic & integrations
+│   │   │   └── stock_sync.py  # Vectorized incremental yfinance batch pipeline
 │   │   └── main.py            # FastAPI entry point & ASGI config
 │   ├── migrations/            # Alembic migration scripts
 │   ├── alembic.ini            # Alembic configuration
+│   ├── models.py              # SQLModel table definitions (Stock, StockPrice, StockDividend)
+│   ├── dependencies.py        # Re-export compatibility layer
 │   ├── db.sql                 # SQLite database file (server-only, not shared at root)
+│   ├── pyrightconfig.json     # Subproject Pyright configuration
 │   └── pyproject.toml         # Backend deps (fastapi, sqlmodel, yfinance, alembic, goose-shared)
 │
-├── tui/                       # Terminal User Interface (Development Client)
-│   ├── api_client.py          # HTTP client wrapper (httpx) to call backend API
-│   ├── widgets/               # Textual custom widget components
-│   ├── screens/               # TUI screen layouts (Dashboard, Detail, etc.)
-│   ├── main.py                # Textual TUI entry point
+├── tui/                       # Terminal User Interface (goose-tui)
+│   ├── api_client.py          # HTTP client wrapper (httpx) calling backend API
+│   ├── main.py                # Textual TUI dashboard entry point
 │   ├── goose.sh               # Shell script launcher
 │   └── pyproject.toml         # TUI deps (textual, httpx, goose-shared)
 │
@@ -51,10 +60,13 @@ goose/
 │   ├── package.json           # Node dependencies
 │   └── README.md
 │
+├── typings/                   # Local typing stubs for untyped libraries (yfinance)
+├── .zed/settings.json         # Zed IDE workspace settings (Pyright extraPaths)
+├── pyrightconfig.json         # Root Pyright static analysis configuration
 ├── pyproject.toml             # uv workspace root — declares all workspace members
 ├── uv.lock                    # Single shared lock file for all Python packages
-├── Makefile                   # Convenience commands to run backend, TUI, and web
-└── README.md                  # Project root README
+├── Makefile                   # Convenience commands to run backend, TUI, and backup
+└── README.md                  # Project overview
 ```
 
 ---

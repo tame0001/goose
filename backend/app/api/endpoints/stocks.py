@@ -72,7 +72,8 @@ def read_stock(yf_ticker: str, db: Session = Depends(get_db)):
         industry=getattr(stock, "industry", None),
         is_active=getattr(stock, "is_active", True),
         created_at=getattr(stock, "created_at", None),
-        price=price_current,
+        latest_price=getattr(stock, "latest_price", None),
+        latest_price_update_at=getattr(stock, "latest_price_update_at", None),
         change=changes,
     )
 
@@ -121,16 +122,28 @@ def add_stock(stock_in: StockCreateRequest, db: Session = Depends(get_db)):
     """Add a new stock to the database and backfill 1 year of daily historical data."""
     clean_ticker = stock_in.ticker.strip().upper()
     clean_yf_ticker = stock_in.yf_ticker.strip().upper()
+    clean_country = stock_in.country.strip().upper()
 
-    existing = db.exec(select(Stock).where(Stock.yf_ticker == clean_yf_ticker)).first()
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Stock {clean_yf_ticker} already exists")
+    # Prevent duplicate yf_ticker
+    existing_yf = db.exec(select(Stock).where(Stock.yf_ticker == clean_yf_ticker)).first()
+    if existing_yf:
+        raise HTTPException(status_code=400, detail=f"Stock with Yahoo Finance ticker '{clean_yf_ticker}' already exists")
+
+    # Prevent duplicate (ticker, country)
+    existing_ticker = db.exec(
+        select(Stock).where(Stock.ticker == clean_ticker, Stock.country == clean_country)
+    ).first()
+    if existing_ticker:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Stock with ticker '{clean_ticker}' already exists in country '{clean_country}'",
+        )
 
     stock = Stock(
         ticker=clean_ticker,
         name=stock_in.name.strip(),
         yf_ticker=clean_yf_ticker,
-        country=stock_in.country.strip().upper(),
+        country=clean_country,
         exchange=stock_in.exchange.strip().upper() if stock_in.exchange else None,
         currency=stock_in.currency.strip().upper(),
         sector=stock_in.sector,
@@ -160,6 +173,7 @@ def add_stock(stock_in: StockCreateRequest, db: Session = Depends(get_db)):
         industry=stock.industry,
         is_active=stock.is_active,
         created_at=stock.created_at,
-        price=price_current,
+        latest_price=stock.latest_price,
+        latest_price_update_at=stock.latest_price_update_at,
         change=changes,
     )

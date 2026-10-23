@@ -29,23 +29,28 @@ graph TD
 ```
 goose/
 ├── docs/                      # Architectural & design specifications
-│   ├── DATABASE_DESIGN.md     # Relational schema, ER diagram, constraints, and draft API
+│   ├── API_DESIGN.md          # Complete REST API specifications & synchronization pipeline
+│   ├── DATABASE_DESIGN.md     # Relational schema, ER diagram, indexing, & SQLite config
 │   ├── PROJECT_STRUCTURE.md   # Multi-client workspace layout and system architecture
-│   └── CODE_REVIEW.md         # Backend code audit and prioritized backlog
+│   └── CODE_REVIEW.md         # Historical backend audit and prioritized backlog
 │
 ├── backend/                   # FastAPI REST API & Database server (goose-backend)
 │   ├── app/
-│   │   ├── api/               # API endpoints (/api/v1/stocks)
-│   │   ├── core/              # Global config and database session management
-│   │   └── crud/              # Database query logic
+│   │   ├── api/               # REST API endpoints (/api/v1/stocks)
+│   │   ├── core/              # Global config & SQLite engine (WAL mode, busy timeout)
+│   │   ├── crud/              # Database queries (crud/stock.py)
+│   │   ├── services/          # Batch sync pipeline (services/stock_sync.py)
+│   │   └── main.py            # FastAPI ASGI entry point
 │   ├── migrations/            # Alembic database migration scripts
 │   ├── models.py              # SQLModel database tables (Stock, StockPrice, StockDividend)
-│   ├── utils/                 # Data fetching and calculations (yfinance)
+│   ├── dependencies.py        # Re-export compatibility layer
 │   └── pyproject.toml         # Backend package definition
 │
 ├── shared/                    # Shared Pydantic data schemas & contracts (goose-shared)
-│   ├── schemas/               # Stock, Price, and Dividend response/request schemas
-│   ├── enums.py               # Shared enumerations (Currency, Exchange)
+│   ├── shared/
+│   │   ├── schemas/           # Stock, Price, Dividend, and Sync response/request models
+│   │   ├── enums.py           # Shared enumerations (Currency, Exchange)
+│   │   └── __init__.py
 │   └── pyproject.toml         # Shared package definition
 │
 ├── tui/                       # Textual Terminal Client (goose-tui)
@@ -57,8 +62,11 @@ goose/
 ├── experiment/                # Research & Algorithmic Prototyping
 │   └── portfolio_optimization_idea.md  # Dividend & upside portfolio optimization proposal
 │
+├── typings/                   # Static type stubs for untyped libraries (yfinance)
+├── .zed/settings.json         # Zed IDE workspace settings
+├── pyrightconfig.json         # Pyright language server configuration
 ├── pyproject.toml             # Root uv workspace configuration
-├── Makefile                   # Convenience commands for development
+├── Makefile                   # Convenience commands for development & backup
 └── README.md                  # Project overview (this file)
 ```
 
@@ -66,7 +74,8 @@ goose/
 
 ## Key Documentation
 
-* 📐 [**Database & API Design (`docs/DATABASE_DESIGN.md`)**](docs/DATABASE_DESIGN.md): Detailed ER diagrams, table schemas (`Stock`, `StockPrice`, `StockDividend`), multi-market ticker collision handling (`ticker x country`), and REST API specifications.
+* 🚀 [**REST API Design (`docs/API_DESIGN.md`)**](docs/API_DESIGN.md): Detailed specifications for all `/api/v1` endpoints, JSON request/response payloads, query filters, and the incremental batch sync pipeline.
+* 📐 [**Database Design (`docs/DATABASE_DESIGN.md`)**](docs/DATABASE_DESIGN.md): ER diagram, table schemas (`Stock`, `StockPrice`, `StockDividend`, `AnalystPriceTarget`), compound uniqueness constraints (`ticker x country`), and SQLite WAL configuration.
 * 🏗️ [**Project Architecture (`docs/PROJECT_STRUCTURE.md`)**](docs/PROJECT_STRUCTURE.md): Detailed explanation of the multi-client decoupling, workspace structure, and packaging rationale.
 * 💡 [**Portfolio Optimization Strategy (`experiment/portfolio_optimization_idea.md`)**](experiment/portfolio_optimization_idea.md): Quantitative framework for dividend yield and analyst target optimization, critical risk assessment, and phased backtesting roadmap.
 * 🔍 [**Code Review & Backlog (`docs/CODE_REVIEW.md`)**](docs/CODE_REVIEW.md): Audit of legacy queries, N+1 optimization, and technical debt.

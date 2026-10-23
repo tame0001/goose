@@ -48,13 +48,16 @@ def calculate_stock_changes(session: Session, stock: Stock) -> tuple[float | Non
     """Calculate the stock price changes over different time periods using local database records."""
     assert stock.id is not None
 
-    # Retrieve latest recorded price from database (fast & offline-safe)
-    latest_record = session.exec(
-        select(StockPrice)
-        .where(StockPrice.stock_id == stock.id)
-        .order_by(desc(StockPrice.date))
-    ).first()
-    price_current = float(latest_record.close) if latest_record else None
+    # Retrieve latest price from Stock model or fallback to StockPrice table
+    if stock.latest_price is not None:
+        price_current = float(stock.latest_price)
+    else:
+        latest_record = session.exec(
+            select(StockPrice)
+            .where(StockPrice.stock_id == stock.id)
+            .order_by(desc(StockPrice.date))
+        ).first()
+        price_current = float(latest_record.close) if latest_record else None
 
     today = datetime.date.today()
 
@@ -101,7 +104,8 @@ def get_all_stocks(session: Session) -> list[StockResponse]:
                 industry=stock.industry,
                 is_active=stock.is_active,
                 created_at=stock.created_at,
-                price=price_current,
+                latest_price=stock.latest_price,
+                latest_price_update_at=stock.latest_price_update_at,
                 change=changes,
                 earning=None,
             )

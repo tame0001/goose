@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -25,7 +26,8 @@ class StockResponse(StockBaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    latest_price: Decimal | None = None
+    latest_price_update_at: datetime.datetime | None = None
     created_at: datetime.datetime | None = None
-    price: float | None = None
     change: StockChangeResponse | None = None
     earning: StockEarningResponse | None = None

@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlmodel import Field, Index, Relationship, SQLModel, UniqueConstraint
 
 
-# TODO: Add field to show 
+# TODO: Add field to show
 # 1) industry and sector based of yfinance API,
 # 2) products and services,
 # 3) direct competitors (foreign key to Stock table),
@@ -60,11 +60,21 @@ class StockBase(SQLModel):
 class Stock(StockBase, table=True):
     """Stock database table storing tracked companies."""
 
-    __table_args__ = (
+    __table_args__: tuple[UniqueConstraint] = (
         UniqueConstraint("ticker", "country", name="uq_stock_ticker_country"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    latest_price: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=10,
+        description="Latest recorded price quote or settled closing price",
+    )
+    latest_price_update_at: datetime.datetime | None = Field(
+        default=None,
+        description="Timestamp of the latest price update",
+    )
     created_at: datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc),
         description="Timestamp when stock was added to database",
