@@ -147,10 +147,12 @@ This document defines the REST API contract for the **Goose** platform. The API 
 * **Route**: `POST /api/v1/stocks/sync`
 * **Query Parameters**:
   * `yf_ticker` (`str`, optional): Sync only this specific stock. If omitted, syncs all active stocks.
-* **Description**: Routine incremental batch synchronization.
-  * Checks the latest recorded price date for each active stock against market close.
-  * Stocks already up to date are **skipped with 0 API calls**.
-  * Out-of-date stocks are grouped by market/date (e.g., Thai batch and US batch) and fetched in a single multi-ticker call using `yf.download(tickers=[...], actions=True)`.
+* **Description**: Routine incremental batch synchronization with intelligent market hours routing:
+  * Evaluates each stock against its local exchange schedule (`Asia/Bangkok` or `America/New_York`).
+  * **Stocks with missing historical days**: Calculates `start_date = latest_date + 1`. In **1 single batch call**, downloads all missing days *and* today's live quote. Historical days are committed to `StockPrice`; today's live quote updates `Stock.latest_price`.
+  * **Stocks up to date during market session**: Fetches today's live quote (`start_date = today`) in 1 batch call, refreshing `Stock.latest_price` without writing to `StockPrice`.
+  * **Stocks closed and up to date**: **Skipped with 0 API calls**.
+  * Out-of-date stocks are grouped by date and market, and fetched in a single multi-ticker call using `yf.download(tickers=[...], actions=True)`.
   * Data is extracted via fast vectorized array operations and committed into SQLite.
 * **Status Codes**:
   * `200 OK`: Sync completed.

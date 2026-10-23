@@ -5,7 +5,7 @@ import pandas as pd
 from sqlmodel import Session, select
 import yfinance as yf
 
-from app.core.market import get_market_local_now, get_schedule, is_session_settled
+from app.core.market import get_market_local_now, get_schedule, is_market_open, is_session_settled
 from app.crud.stock import get_latest_price_date
 from models import Stock, StockDividend, StockPrice
 from shared.schemas.sync import StockSyncResult, StockSyncSummary
@@ -13,35 +13,52 @@ from shared.schemas.sync import StockSyncResult, StockSyncSummary
 logger = logging.getLogger(__name__)
 
 
-def _is_up_to_date(stock: Stock, latest_date: datetime.date | None) -> tuple[bool, str]:
-    """Check if the stock's settled daily history is up to date based on market hours."""
-    if latest_date is None:
-        return False, "No historical data in database"
+def _evaluate_sync_need(
+    stock: Stock,
+    latest_date: datetime.date | None,
+) -> tuple[bool, datetime.date | None, str]:
+    """Evaluate whether a stock needs synchronization, calculating the exact start_date.
 
+    Handles:
+    1. Newly added stock: needs 1-year backfill.
+    2. Missing historical settled days: backfills from latest_date + 1 (even if market is currently open).
+    3. Historical settled days are up to date:
+       - If market is currently OPEN: syncs today's live quote.
+       - If market is CLOSED: skipped with 0 network calls.
+    """
     local_now = get_market_local_now(stock.country, stock.exchange)
     local_today = local_now.date()
     schedule = get_schedule(stock.country, stock.exchange)
+    market_open = is_market_open(stock.country, stock.exchange)
 
-    # 1. Weekend check: if today is Saturday (5) or Sunday (6), latest settled day is Friday
-    if local_now.weekday() >= 5:
-        last_friday = local_today - datetime.timedelta(days=local_now.weekday() - 4)
-        if latest_date >= last_friday:
-            return True, "Market closed on weekend; latest session already recorded"
-        return False, "Needs update for previous week"
+    # 1. No historical data: 1-year backfill needed
+    if latest_date is None:
+        start_date = local_today - datetime.timedelta(days=365)
+        return True, start_date, "No historical data in database"
 
-    # 2. Weekday before closing bell: latest settled day is previous trading session
-    if local_now.time() < schedule.close_time:
-        days_back = 3 if local_now.weekday() == 0 else 1  # If Monday, previous is Friday
-        prev_session = local_today - datetime.timedelta(days=days_back)
-        if latest_date >= prev_session:
-            return True, "Latest settled session recorded; current session not closed yet"
-        return False, "Needs update for previous sessions"
+    # 2. Determine the latest expected settled trading day
+    if local_now.weekday() >= 5:  # Weekend
+        last_settled = local_today - datetime.timedelta(days=local_now.weekday() - 4)
+    elif local_now.time() >= schedule.close_time:  # Weekday after close
+        last_settled = local_today
+    else:  # Weekday before close
+        days_back = 3 if local_now.weekday() == 0 else 1
+        last_settled = local_today - datetime.timedelta(days=days_back)
 
-    # 3. Weekday after closing bell: today's session is now settled
-    if latest_date >= local_today:
-        return True, "Already up to date with today's closing price"
+    # 3. If missing historical settled days, backfill starting from latest_date + 1
+    #    (If market is open today, this single request will ALSO fetch today's live quote!)
+    if latest_date < last_settled:
+        start_date = latest_date + datetime.timedelta(days=1)
+        missing_days = (last_settled - latest_date).days
+        return True, start_date, f"Missing historical data ({missing_days} day(s) behind settled close)"
 
-    return False, "Needs today's closing price"
+    # 4. Historical settled data is up to date:
+    #    If market is actively trading, refresh today's live quote
+    if market_open:
+        return True, local_today, "Market is actively trading; refreshing live price quote"
+
+    # 5. Market is closed and all settled history is recorded: skip!
+    return False, None, "Market closed and latest settled closing price already recorded"
 
 
 def _extract_ticker_df(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
@@ -151,22 +168,26 @@ def sync_stock_data(
 ) -> StockSyncResult:
     """Sync a single stock individually (used when adding a stock or requesting single sync)."""
     assert stock.id is not None
-    local_now = get_market_local_now(stock.country, stock.exchange)
-    today = local_now.date()
     latest_date = get_latest_price_date(session, stock.id)
+    local_now = get_market_local_now(stock.country, stock.exchange)
+    local_today = local_now.date()
 
-    if not force_full_year:
-        up_to_date, reason = _is_up_to_date(stock, latest_date)
-        if up_to_date:
-            return StockSyncResult(
-                yf_ticker=stock.yf_ticker,
-                status="skipped",
-                latest_date=latest_date,
-                reason=reason,
-            )
+    if force_full_year:
+        needs_sync = True
+        start_date = local_today - datetime.timedelta(days=365)
+        reason = "Forced full-year backfill"
+    else:
+        needs_sync, start_date, reason = _evaluate_sync_need(stock, latest_date)
 
-    start_date = (today - datetime.timedelta(days=365)) if (force_full_year or latest_date is None) else (latest_date + datetime.timedelta(days=1))
-    end_date = today + datetime.timedelta(days=1)
+    if not needs_sync or start_date is None:
+        return StockSyncResult(
+            yf_ticker=stock.yf_ticker,
+            status="skipped",
+            latest_date=latest_date,
+            reason=reason,
+        )
+
+    end_date = local_today + datetime.timedelta(days=1)
 
     try:
         yf_stock = yf.Ticker(stock.yf_ticker)
@@ -192,7 +213,7 @@ def sync_stock_data(
         new_price_records=new_prices,
         new_dividend_records=new_divs,
         latest_date=updated_date,
-        reason=f"Added {new_prices} prices, {new_divs} dividends, quote {stock.latest_price}" if has_updates else "No new market sessions",
+        reason=f"Added {new_prices} prices, {new_divs} dividends, quote {stock.latest_price}" if has_updates else reason,
     )
 
 
@@ -200,28 +221,29 @@ def sync_all_active_stocks(session: Session) -> StockSyncSummary:
     """Routine bulk sync for all active stocks using group-by-date batching.
 
     Minimizes network calls by:
-    1. Skipping all stocks that are already up-to-date (0 network calls).
-    2. Grouping remaining stocks by start_date (e.g. US batch vs Thai batch).
-    3. Downloading all tickers in each group in a single yf.download() call.
+    1. Skipping stocks when market is closed and data is already up to date (0 network calls).
+    2. Grouping remaining stocks by start_date.
+    3. If missing past days (even during active trading hours), start_date automatically
+       pulls from latest_date + 1 so both past settled days and live quote are retrieved
+       in a single yf.download() call.
     """
     stocks = session.exec(select(Stock).where(Stock.is_active == True)).all()  # noqa: E712
     today = datetime.date.today()
 
     results: list[StockSyncResult] = []
-    # Map start_date -> list of Stock objects
     batches_by_date: dict[datetime.date, list[Stock]] = {}
 
     updated_count = 0
     skipped_count = 0
     error_count = 0
 
-    # Step 1: Local inspection (zero network calls)
+    # Step 1: Local evaluation (zero network calls)
     for stock in stocks:
         assert stock.id is not None
         latest_date = get_latest_price_date(session, stock.id)
-        up_to_date, reason = _is_up_to_date(stock, latest_date)
+        needs_sync, start_date, reason = _evaluate_sync_need(stock, latest_date)
 
-        if up_to_date:
+        if not needs_sync or start_date is None:
             results.append(
                 StockSyncResult(
                     yf_ticker=stock.yf_ticker,
@@ -232,9 +254,6 @@ def sync_all_active_stocks(session: Session) -> StockSyncSummary:
             )
             skipped_count += 1
         else:
-            local_now = get_market_local_now(stock.country, stock.exchange)
-            local_today = local_now.date()
-            start_date = (local_today - datetime.timedelta(days=365)) if latest_date is None else (latest_date + datetime.timedelta(days=1))
             batches_by_date.setdefault(start_date, []).append(stock)
 
     # Step 2: Download each batch in a single call
