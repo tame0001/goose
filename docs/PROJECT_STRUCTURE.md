@@ -1,6 +1,6 @@
 # Project Structure Specification: Goose
 
-This document details the multi-client architecture and repository layout for the Goose application. **FastAPI** serves as the single source of truth for database access, with both the **Textual TUI** (for development and rapid inspection) and the **Angular Web App** (for production) acting as client applications consuming backend API endpoints.
+This document details the architecture and repository layout for the Goose application. **FastAPI** serves as the single source of truth for database access and business logic, with the upcoming **Angular Web App** (`web/`) acting as the client application consuming backend REST API endpoints.
 
 ---
 
@@ -11,7 +11,8 @@ goose/
 ├── docs/                      # Architectural & design specifications
 │   ├── API_DESIGN.md          # REST API endpoints, schemas, and sync specifications
 │   ├── DATABASE_DESIGN.md     # Relational schema, ER diagram, and SQLite configuration
-│   ├── PROJECT_STRUCTURE.md   # Multi-client workspace layout (this document)
+│   ├── PROJECT_STRUCTURE.md   # System architecture and workspace layout (this document)
+│   ├── TODO_EARNINGS_AND_ANALYST_RATINGS.md # Temporary feature backlog for sentiment tracking
 │   └── CODE_REVIEW.md         # Historical backend audit and technical debt log
 │
 ├── shared/                    # Shared Python package (goose-shared)
@@ -30,7 +31,8 @@ goose/
 │   │   ├── api/               # API router and endpoints (/api/v1/stocks)
 │   │   ├── core/              # Global configuration & SQLite database engine
 │   │   │   ├── config.py      # Env vars & settings (DATABASE_URL, SQL_ECHO, etc.)
-│   │   │   └── database.py    # Engine (WAL mode, busy timeout) & get_db generator
+│   │   │   ├── database.py    # Engine (WAL mode, busy timeout) & get_db generator
+│   │   │   └── market.py      # Timezone-aware exchange trading hours & status checks
 │   │   ├── crud/              # Database operations (crud/stock.py)
 │   │   ├── services/          # Business logic & integrations
 │   │   │   └── stock_sync.py  # Vectorized incremental yfinance batch pipeline
@@ -43,16 +45,10 @@ goose/
 │   ├── pyrightconfig.json     # Subproject Pyright configuration
 │   └── pyproject.toml         # Backend deps (fastapi, sqlmodel, yfinance, alembic, goose-shared)
 │
-├── tui/                       # Terminal User Interface (goose-tui)
-│   ├── api_client.py          # HTTP client wrapper (httpx) calling backend API
-│   ├── main.py                # Textual TUI dashboard entry point
-│   ├── goose.sh               # Shell script launcher
-│   └── pyproject.toml         # TUI deps (textual, httpx, goose-shared)
-│
-├── web/                       # Angular Web Application (Production Client)
+├── web/                       # Angular Web Application (Planned Client)
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── components/    # Reusable Angular components
+│   │   │   ├── components/    # Reusable Angular components (charts, tables)
 │   │   │   ├── services/      # Angular services (API calls via HttpClient)
 │   │   │   └── models/        # TypeScript interfaces mirroring shared schemas
 │   │   └── assets/
@@ -65,7 +61,7 @@ goose/
 ├── pyrightconfig.json         # Root Pyright static analysis configuration
 ├── pyproject.toml             # uv workspace root — declares all workspace members
 ├── uv.lock                    # Single shared lock file for all Python packages
-├── Makefile                   # Convenience commands to run backend, TUI, and backup
+├── Makefile                   # Convenience commands to run backend and backup
 └── README.md                  # Project overview
 ```
 
@@ -75,38 +71,33 @@ goose/
 
 ```mermaid
 graph TD
-    Shared[shared - Pydantic schemas & enums]
-    DB[(SQLite - backend/db.sql)] <--> Backend[FastAPI Backend Server]
+    Shared["shared/ (goose-shared)<br>Pydantic schemas & enums"]
+    DB[("SQLite (backend/db.sql)")] <--> Backend["FastAPI Backend Server (goose-backend)"]
     Shared --> Backend
-    Shared --> TUI
-    Backend <-->|HTTP REST| TUI[Textual TUI Client]
-    Backend <-->|HTTP REST| Angular[Angular Web Client]
+    Shared -.->|Mirrored as TypeScript interfaces| Angular["Angular Web Client (Planned)"]
+    Backend <-->|HTTP REST / HttpClient| Angular
 ```
 
 ### 1. Shared Package (`shared/`)
-- Contains **Pydantic schemas** (API request/response models) and **enums** shared between backend and TUI.
-- Managed as a **uv workspace member** — no manual path hacking needed.
-- The backend uses these schemas as FastAPI response models; the TUI uses them to parse and validate API responses.
-- When building the Angular frontend, `shared/schemas/` serves as the **reference** for writing matching TypeScript interfaces.
+- Contains **Pydantic schemas** (API request/response models) and **enums**.
+- Managed as a **uv workspace member** (`goose-shared`).
+- The backend uses these schemas as FastAPI response models.
+- When building the Angular frontend, `shared/shared/schemas/` serves as the **source of truth** for writing matching TypeScript interfaces.
 
 ### 2. Database & Server (`backend/`)
 - **FastAPI** is the **exclusive** manager of `db.sql`.
-- `db.sql` lives inside `backend/` — it is a server implementation detail; no client references its path directly.
+- `db.sql` lives inside `backend/` — it is a server implementation detail; clients never connect directly.
 - `core/config.py` reads `DATABASE_URL` and `SQL_ECHO` from environment variables.
-- `core/database.py` creates the engine and session factory (consolidates the current `dependencies.py`).
-- The server runs as an independent process: `uvicorn app.main:app --reload`
-- Note: `backend/app/` has no `schemas/` folder — those live in `shared/` now.
+- `core/database.py` creates the engine with WAL mode and busy timeout.
+- `core/market.py` provides timezone-aware session status for Thai and US exchanges.
+- `services/stock_sync.py` executes batched, vectorized yfinance downloads to minimize network requests.
+- The server runs as an independent process: `uvicorn app.main:app --reload`.
 
-### 3. Terminal UI Client (`tui/`)
-- Built with **Textual**, runs as a standalone Python application.
-- Has **no direct database access** — all data flows through the FastAPI backend via `httpx`.
-- `api_client.py` is a thin wrapper that handles base URL, error handling, and response parsing using shared Pydantic schemas.
-- Flat directory structure (no `src/` nesting) since this is not a distributed package.
-
-### 4. Angular Web Client (`web/`)
+### 3. Angular Web Client (`web/`, Planned)
 - Built with **Angular**, communicates with the backend using `HttpClient`.
-- TypeScript `models/` mirror the `shared/schemas/` Pydantic models for type safety end-to-end.
-- CORS is configured on the FastAPI server to allow requests from the Angular dev server.
+- TypeScript `models/` mirror the `shared/shared/schemas/` Pydantic models for end-to-end type safety.
+- Utilizes modern browser charting (e.g. TradingView Lightweight Charts) for interactive financial time-series visualization.
+- CORS is configured on the FastAPI server to allow requests from the Angular development server.
 
 ---
 
@@ -117,7 +108,7 @@ A single `pyproject.toml` at the root declares all Python packages as workspace 
 ```toml
 # goose/pyproject.toml  (root)
 [tool.uv.workspace]
-members = ["shared", "backend", "tui"]
+members = ["shared", "backend"]
 ```
 
 ```toml
@@ -141,29 +132,18 @@ dependencies = [
 ]
 ```
 
-```toml
-# goose/tui/pyproject.toml
-[project]
-name = "goose-tui"
-dependencies = [
-    "goose-shared",   # same shared schemas, no duplication
-    "textual",
-    "httpx",
-]
-```
-
 ---
 
 ## Root `Makefile`
 
 ```makefile
-.PHONY: backend tui web
+.PHONY: backend web sync lint backup
+
+sync:
+	uv sync
 
 backend:
 	cd backend && uv run uvicorn app.main:app --reload
-
-tui:
-	cd tui && uv run python main.py
 
 web:
 	cd web && ng serve
@@ -174,11 +154,11 @@ web:
 ## Advantages of this Structure
 
 | Concern | Approach |
-|---------|----------|
-| Single source of truth for DB | Only `backend/` touches `db.sql` |
-| Single source of truth for API contract | Pydantic schemas live in `shared/`, used by both backend and TUI |
-| Lean dependencies | Each package has its own `pyproject.toml` |
-| One lock file | uv workspace manages a single `uv.lock` at the root |
-| API-first development | TUI forces well-designed endpoints before Angular is built |
-| Portability | `DATABASE_URL` in `core/config.py` makes DB backend swappable |
-| Developer experience | `Makefile` provides simple `make backend` / `make tui` commands |
+|:---|:---|
+| **Single source of truth for DB** | Only `backend/` touches `db.sql`. |
+| **Single source of truth for API contract** | Pydantic schemas live in `shared/`, mirrored to TypeScript interfaces in `web/`. |
+| **Lean dependencies** | Each package has its own `pyproject.toml`. |
+| **One lock file** | uv workspace manages a single `uv.lock` at the root. |
+| **API-first development** | Backend endpoints are fully defined and tested via OpenAPI/Swagger before frontend integration. |
+| **Portability** | `DATABASE_URL` in `core/config.py` makes DB backend swappable (SQLite $\rightarrow$ PostgreSQL). |
+| **Developer experience** | `Makefile` provides simple `make backend` and `make backup` commands. |

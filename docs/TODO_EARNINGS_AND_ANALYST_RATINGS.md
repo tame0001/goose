@@ -123,5 +123,5 @@ Before deleting this file, ensure:
 - [ ] Database tables (`AnalystPriceTarget`, `AnalystRatingSnapshot`, `StockEarningReport`) migrated and active in SQLite.
 - [ ] Weekly synchronization worker implemented in `backend/app/services/`.
 - [ ] API routes implemented under `/api/v1/stocks/...`.
-- [ ] TUI or Web client displays target momentum and upcoming earnings dates.
+- [ ] Web client displays target momentum and upcoming earnings dates.
 - [ ] Permanent architecture notes migrated into `DATABASE_DESIGN.md` and `API_DESIGN.md`.

@@ -1,13 +1,13 @@
 # REST API Specification: Goose
 
-This document defines the REST API contract for the **Goose** platform. The API serves as the single source of truth for all client applications, including the Textual Terminal UI (`tui/`) and the upcoming Angular Web App (`web/`).
+This document defines the REST API contract for the **Goose** platform. The API serves as the single source of truth for client applications, including the upcoming Angular Web App (`web/`).
 
 ---
 
 ## 1. Architectural Principles
 
 1. **API-First Decoupling**: Clients never access the database directly. All read and write operations flow through FastAPI endpoints under `/api/v1`.
-2. **Shared Contract (`goose-shared`)**: All request and response structures are defined via Pydantic models in [`shared/shared/schemas/`](file:///home/tam/github/goose/shared/shared/schemas). Python clients (TUI) import these models directly; web clients mirror them as TypeScript interfaces.
+2. **Shared Contract (`goose-shared`)**: All request and response structures are defined via Pydantic models in [`shared/shared/schemas/`](file:///home/tam/github/goose/shared/shared/schemas). Python services import these models directly; web clients mirror them as TypeScript interfaces.
 3. **Identifier Flexibility**: Stock lookup endpoints accept either the Yahoo Finance ticker (`yf_ticker`, e.g., `PTT.BK`, `AAPL`) or the local market ticker (`ticker`, e.g., `PTT`, `AAPL`) with automatic uppercase normalization.
 4. **Automated Onboarding**: Adding a stock immediately triggers a 1-year historical backfill of daily OHLCV prices and cash dividend events before returning.
 5. **Settled History vs. Intraday Quotes**: The `stock_price` table strictly stores finalized, settled OHLCV daily bars after the market close. If a sync is executed while a market is actively trading, the partial intraday candle is excluded from `stock_price`; only `Stock.latest_price` and `Stock.latest_price_update_at` are refreshed.

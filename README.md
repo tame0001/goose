@@ -9,17 +9,15 @@
 Goose is built as an **API-first monorepo** using a unified **`uv` workspace**:
 * **FastAPI Backend (`backend/`)**: The single source of truth for database access, business logic, and third-party data integrations (e.g. Yahoo Finance). Owns the SQLite database (`backend/db.sql`).
 * **Shared Contract (`shared/`)**: Shared Pydantic schemas and enums used across backend and clients to ensure end-to-end data integrity.
-* **Terminal UI (`tui/`)**: A fast, interactive terminal dashboard built with **Textual** for active development and quick inspection. Communicates with the backend strictly via HTTP REST.
-* **Web UI (`web/`, Planned)**: An Angular single-page application for production web consumption.
+* **Web UI (`web/`, Planned)**: An Angular single-page application for production web consumption, charts, and portfolio visualization.
 
 ```mermaid
 graph TD
     Shared["shared/ (goose-shared)<br>Pydantic schemas & enums"]
     DB[("SQLite (backend/db.sql)")] <--> Backend["FastAPI Backend Server (goose-backend)"]
     Shared --> Backend
-    Shared --> TUI["Textual TUI Client (goose-tui)"]
-    Backend <-->|HTTP REST / httpx| TUI
-    Backend <..->|HTTP REST / HttpClient (Planned)| Angular["Angular Web Client (Planned)"]
+    Shared -.->|Mirrored as TypeScript interfaces| Angular["Angular Web Client (Planned)"]
+    Backend <-->|HTTP REST / HttpClient| Angular
 ```
 
 ---
@@ -31,13 +29,14 @@ goose/
 ├── docs/                      # Architectural & design specifications
 │   ├── API_DESIGN.md          # Complete REST API specifications & synchronization pipeline
 │   ├── DATABASE_DESIGN.md     # Relational schema, ER diagram, indexing, & SQLite config
-│   ├── PROJECT_STRUCTURE.md   # Multi-client workspace layout and system architecture
+│   ├── PROJECT_STRUCTURE.md   # System architecture and workspace layout
+│   ├── TODO_EARNINGS_AND_ANALYST_RATINGS.md # Temporary feature backlog for sentiment tracking
 │   └── CODE_REVIEW.md         # Historical backend audit and prioritized backlog
 │
 ├── backend/                   # FastAPI REST API & Database server (goose-backend)
 │   ├── app/
 │   │   ├── api/               # REST API endpoints (/api/v1/stocks)
-│   │   ├── core/              # Global config & SQLite engine (WAL mode, busy timeout)
+│   │   ├── core/              # Global config, SQLite engine, & market hours
 │   │   ├── crud/              # Database queries (crud/stock.py)
 │   │   ├── services/          # Batch sync pipeline (services/stock_sync.py)
 │   │   └── main.py            # FastAPI ASGI entry point
@@ -52,12 +51,6 @@ goose/
 │   │   ├── enums.py           # Shared enumerations (Currency, Exchange)
 │   │   └── __init__.py
 │   └── pyproject.toml         # Shared package definition
-│
-├── tui/                       # Textual Terminal Client (goose-tui)
-│   ├── api_client.py          # Asynchronous HTTP client (httpx) calling backend
-│   ├── main.py                # Textual TUI dashboard entry point
-│   ├── goose.sh               # Terminal launcher script
-│   └── pyproject.toml         # TUI package definition
 │
 ├── experiment/                # Research & Algorithmic Prototyping
 │   └── portfolio_optimization_idea.md  # Dividend & upside portfolio optimization proposal
@@ -113,11 +106,10 @@ make backend
 # Interactive Swagger docs: http://127.0.0.1:8000/docs
 ```
 
-### 2. Launch the Textual TUI Client
-In a separate terminal window:
+### 2. Database Backup
 ```bash
-make tui
-# or: cd tui && uv run python main.py
+make backup
+# Creates clean snapshot in .db_backup/ (goose_backup.db and goose_backup.sql)
 ```
 
 ### 3. Code Formatting & Linting

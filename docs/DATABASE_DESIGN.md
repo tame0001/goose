@@ -10,7 +10,7 @@ For the HTTP endpoints, request/response models, and sync pipeline details, see 
 
 In accordance with our multi-client architecture:
 * **Database Models (`backend/models.py`)**: Defined via **SQLModel** (`table=True`). Owned strictly by the backend to manage SQLite persistence, indexing, migrations (Alembic), and relational integrity.
-* **API Schemas (`shared/shared/schemas/`)**: Defined via **Pydantic** (`BaseModel`). Shared across the backend and Python TUI, and serving as the blueprint for Angular TypeScript interfaces (`.ts`).
+* **API Schemas (`shared/shared/schemas/`)**: Defined via **Pydantic** (`BaseModel`). Owned by the shared package and serving as the blueprint for Angular TypeScript interfaces (`.ts`).
 * **Clients never connect directly to the database**. All client interaction flows through the FastAPI REST server. See [API_DESIGN.md](API_DESIGN.md).
 
 ---
