@@ -30,8 +30,7 @@ goose/
 │   ├── API_DESIGN.md          # Complete REST API specifications & synchronization pipeline
 │   ├── DATABASE_DESIGN.md     # Relational schema, ER diagram, indexing, & SQLite config
 │   ├── PROJECT_STRUCTURE.md   # System architecture and workspace layout
-│   ├── TODO_EARNINGS_AND_ANALYST_RATINGS.md # Temporary feature backlog for sentiment tracking
-│   └── CODE_REVIEW.md         # Historical backend audit and prioritized backlog
+│   └── TODO_EARNINGS_AND_ANALYST_RATINGS.md # Temporary feature backlog for sentiment tracking
 │
 ├── backend/                   # FastAPI REST API & Database server (goose-backend)
 │   ├── app/
@@ -71,7 +70,6 @@ goose/
 * 📐 [**Database Design (`docs/DATABASE_DESIGN.md`)**](docs/DATABASE_DESIGN.md): ER diagram, table schemas (`Stock`, `StockPrice`, `StockDividend`, `AnalystPriceTarget`), compound uniqueness constraints (`ticker x country`), and SQLite WAL configuration.
 * 🏗️ [**Project Architecture (`docs/PROJECT_STRUCTURE.md`)**](docs/PROJECT_STRUCTURE.md): Detailed explanation of the multi-client decoupling, workspace structure, and packaging rationale.
 * 💡 [**Portfolio Optimization Strategy (`experiment/portfolio_optimization_idea.md`)**](experiment/portfolio_optimization_idea.md): Quantitative framework for dividend yield and analyst target optimization, critical risk assessment, and phased backtesting roadmap.
-* 🔍 [**Code Review & Backlog (`docs/CODE_REVIEW.md`)**](docs/CODE_REVIEW.md): Audit of legacy queries, N+1 optimization, and technical debt.
 
 ---
 

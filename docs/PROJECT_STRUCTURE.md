@@ -12,8 +12,7 @@ goose/
 │   ├── API_DESIGN.md          # REST API endpoints, schemas, and sync specifications
 │   ├── DATABASE_DESIGN.md     # Relational schema, ER diagram, and SQLite configuration
 │   ├── PROJECT_STRUCTURE.md   # System architecture and workspace layout (this document)
-│   ├── TODO_EARNINGS_AND_ANALYST_RATINGS.md # Temporary feature backlog for sentiment tracking
-│   └── CODE_REVIEW.md         # Historical backend audit and technical debt log
+│   └── TODO_EARNINGS_AND_ANALYST_RATINGS.md # Temporary feature backlog for sentiment tracking
 │
 ├── shared/                    # Shared Python package (goose-shared)
 │   ├── shared/
