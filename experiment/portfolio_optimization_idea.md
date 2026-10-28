@@ -51,12 +51,14 @@ Academic research consistently shows analyst consensus targets have **low predic
 
 Using analyst targets as the primary growth signal means building on a shaky foundation. *Mitigation*: Require minimum analyst coverage ($\ge 5$ analysts), or better yet, weight by historical accuracy of analyst predictions for each stock.
 
-### Problem 3: No Concept of Risk
+### Problem 3: No Concept of Risk & Illusory Diversification
 
-Maximizing pure expected return without penalizing risk is a recipe for a concentrated, volatile portfolio. Even with the $10\%$ cap, you could easily end up holding 10 highly correlated stocks (e.g., all energy or all REITs) that crash together.
+Maximizing pure expected return without penalizing risk is a recipe for a concentrated, volatile portfolio. Even with the $10\%$ cap, you could easily end up holding 10 stocks that look distinct by ticker symbol but are tied to the exact same supply chain or macro driver (e.g., holding NVDA, TSM, ASML, AVGO, and MSFT—all tied to AI data center buildouts).
 
 *Mitigations*:
 - **Sector exposure caps** (e.g., max $25\%$ per sector).
+- **Return Correlation Matrix ($\rho$) Constraint**: Penalize pairs with high correlation ($\rho \ge 0.75$) using historical `stock_price` data to enforce empirical diversification.
+- **Key Dependency Concentration Cap**: Ensure no single external supply chain bottleneck (e.g., `TSMC Foundry`, `Crude Oil`) accounts for $>30\%$ of total portfolio allocation.
 - **Volatility or drawdown constraints** (e.g., portfolio annualized vol $\le 15\%$).
 - **Mean-Variance optimization** (maximize Sharpe Ratio instead of raw return) — this requires a covariance matrix but produces more robust portfolios.
 

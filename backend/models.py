@@ -166,18 +166,42 @@ class StockDividend(StockDividendBase, table=True):
 
 
 class AnalystPriceTargetBase(SQLModel):
-    """Analyst consensus price target from data sources."""
+    """Analyst consensus price target and recommendation breakdown."""
 
     date: datetime.date = Field(description="Date target was published or retrieved")
-    stock_id: int = Field(foreign_key="stock.id")
-    high: Decimal = Field(decimal_places=2)
-    low: Decimal = Field(decimal_places=2)
-    mean: Decimal = Field(decimal_places=2)
-    median: Decimal = Field(decimal_places=2)
+    stock_id: int = Field(foreign_key="stock.id", index=True)
+
+    # 1. Price Targets (from yfinance analyst_price_targets)
+    target_high: Decimal | None = Field(default=None, decimal_places=2, max_digits=10)
+    target_low: Decimal | None = Field(default=None, decimal_places=2, max_digits=10)
+    target_mean: Decimal | None = Field(default=None, decimal_places=2, max_digits=10)
+    target_median: Decimal | None = Field(default=None, decimal_places=2, max_digits=10)
+
+    # 2. Recommendation Breakdown (from yfinance recommendations)
+    strong_buy: int = Field(default=0, description="Strong Buy recommendation count")
+    buy: int = Field(default=0, description="Buy recommendation count")
+    hold: int = Field(default=0, description="Hold recommendation count")
+    sell: int = Field(default=0, description="Sell recommendation count")
+    strong_sell: int = Field(default=0, description="Strong Sell recommendation count")
+    total_analysts: int = Field(default=0, description="Total analyst coverage count")
+
+    # 3. Weighted Score (1.0 = Strong Sell, 5.0 = Strong Buy)
+    consensus_score: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=3,
+        description="Weighted score: (5*SB + 4*B + 3*H + 2*S + 1*SS) / total",
+    )
 
 
 class AnalystPriceTarget(AnalystPriceTargetBase, table=True):
-    """Analyst price targets table."""
+    """Analyst price targets and recommendation snapshots table."""
+
+    __tablename__ = "analyst_price_target"
+    __table_args__ = (
+        UniqueConstraint("stock_id", "date", name="uq_analyst_target_stock_date"),
+        Index("ix_analyst_target_stock_date", "stock_id", "date"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     stock: Stock | None = Relationship(back_populates="analyst_targets")

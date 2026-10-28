@@ -169,6 +169,16 @@ Discrete corporate cash dividend distributions.
    * > [!IMPORTANT]
    * > **Future Expansion Reconsideration**: If Goose expands to support additional countries or stock exchanges in the future, this architectural decision must be reconsidered to introduce dedicated `exchange` and `exchange_holiday` database tables with dynamic scheduling.
 
+6. **Portfolio Concentration & Risk Tracking (Quantitative + Key Dependencies)**:
+   * To prevent **"illusory diversification"** (e.g., holding 20 stocks where 18 are secretly tied to the exact same supply chain or macro driver), Goose uses a pragmatic two-pillar approach:
+     1. **Quantitative Metrics (Empirical Co-Movement)**:
+        * **Rolling Return Correlation Matrix ($\rho$)**: Computed directly from historical settled `stock_price` data across portfolio holdings. Identifies clusters of stocks that move in lockstep ($\rho \ge 0.75$).
+        * **Historical Beta ($\beta$)**: Measures systematic market sensitivity relative to national benchmarks (S&P 500 for US, SET Index for Thailand), distinguishing high-beta growth from low-beta defensive cushions (e.g. Walmart, CPALL).
+     2. **Qualitative Tracking (Key Dependencies & Bottlenecks)**:
+        * Rather than over-engineering complex multi-tier supply chain ontologies across different industries, each stock will track its **primary upstream dependencies and critical bottlenecks** (e.g., `TSMC Foundry`, `Data Center CapEx`, `Crude Oil Feedstock`, `US Consumer Disposable Income`).
+        * **Concentration Detection**: Enables the portfolio engine to detect shared single-point-of-failure (SPOF) risks across seemingly unrelated stocks (e.g., flagging that 5 tech holdings all rely on TSMC advanced node packaging).
+        * **Planned Schema**: A lightweight relational link (`StockDependency`: `stock_id`, `dependency_name`, `impact_level`) to keep data entry simple while enabling automated concentration checks.
+
 ---
 
 ## 5. REST API Integration
