@@ -84,6 +84,7 @@ class Stock(StockBase, table=True):
     prices: list["StockPrice"] = Relationship(back_populates="stock")
     dividends: list["StockDividend"] = Relationship(back_populates="stock")
     analyst_targets: list["AnalystPriceTarget"] = Relationship(back_populates="stock")
+    earnings: list["StockEarning"] = Relationship(back_populates="stock")
 
 
 class StockPriceBase(SQLModel):
@@ -146,11 +147,6 @@ class StockDividendBase(SQLModel):
         decimal_places=2,
         description="Cash dividend payout amount per share",
     )
-    currency: str = Field(
-        default="USD",
-        max_length=10,
-        description="Currency of the dividend distribution",
-    )
 
 
 class StockDividend(StockDividendBase, table=True):
@@ -205,3 +201,49 @@ class AnalystPriceTarget(AnalystPriceTargetBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     stock: Stock | None = Relationship(back_populates="analyst_targets")
+
+
+class StockEarningBase(SQLModel):
+    """Base fields for corporate quarterly earnings announcements and EPS results."""
+
+    stock_id: int = Field(foreign_key="stock.id", index=True)
+    report_date: datetime.date = Field(
+        description="Date of the earnings release (or scheduled date for upcoming)"
+    )
+    fiscal_period: str | None = Field(
+        default=None,
+        max_length=20,
+        description="Quarter label (e.g. 'Q3 2026' or '2026-09-30')",
+    )
+    eps_estimate: Decimal | None = Field(
+        default=None,
+        decimal_places=4,
+        max_digits=10,
+        description="Consensus forecasted Earnings Per Share",
+    )
+    eps_reported: Decimal | None = Field(
+        default=None,
+        decimal_places=4,
+        max_digits=10,
+        description="Actual announced Earnings Per Share (NULL for upcoming earnings)",
+    )
+    surprise_pct: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=6,
+        description="Earnings surprise percentage (e.g. +4.52 or -1.80)",
+    )
+
+
+class StockEarning(StockEarningBase, table=True):
+    """Corporate earnings history and upcoming announcements table."""
+
+    __tablename__ = "stock_earning"
+    __table_args__ = (
+        UniqueConstraint("stock_id", "report_date", name="uq_stock_earning_stock_date"),
+        Index("ix_stock_earning_stock_date", "stock_id", "report_date"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    stock: Stock | None = Relationship(back_populates="earnings")
+

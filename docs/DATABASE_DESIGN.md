@@ -19,56 +19,25 @@ In accordance with our multi-client architecture:
 
 ```mermaid
 erDiagram
-    STOCK ||--o{ STOCK_PRICE : "has daily historical prices"
-    STOCK ||--o{ STOCK_DIVIDEND : "has dividend cash payouts"
-    STOCK ||--o{ ANALYST_PRICE_TARGET : "has consensus price targets"
+    STOCK ||--o{ STOCK_PRICE : "has daily historical OHLCV prices"
+    STOCK ||--o{ STOCK_DIVIDEND : "has cash dividend payouts"
+    STOCK ||--o{ ANALYST_PRICE_TARGET : "has weekly consensus targets & ratings"
+    STOCK ||--o{ STOCK_EARNING : "has quarterly EPS estimates & surprises"
 
     STOCK {
-        int id PK
-        string ticker "Local symbol (e.g. AAPL, PTT, A)"
-        string yf_ticker UK "Yahoo Finance symbol (e.g. AAPL, PTT.BK, A.BK)"
-        string name "Company legal name"
-        string country "USA | THAILAND"
-        string exchange "NASDAQ | NYSE | SET"
-        string currency "USD | THB"
-        string sector "GICS Sector (e.g. Technology, Energy)"
-        string industry "GICS Industry (e.g. Consumer Electronics)"
-        boolean is_active "Tracking status"
-        decimal latest_price "Latest price quote or settled close"
-        datetime latest_price_update_at "Timestamp of latest quote update"
-        datetime created_at "Registration timestamp"
+        string description "Master company registry & live price quote"
     }
-
     STOCK_PRICE {
-        int id PK
-        int stock_id FK
-        date date "Trading date"
-        decimal open "Opening price"
-        decimal high "Daily high"
-        decimal low "Daily low"
-        decimal close "Raw unadjusted closing price"
-        decimal adj_close "Split & dividend adjusted close"
-        int volume "Traded share volume"
+        string description "Settled daily historical OHLCV price bars"
     }
-
     STOCK_DIVIDEND {
-        int id PK
-        int stock_id FK
-        date ex_date "Ex-dividend cutoff date"
-        date payment_date "Cash distribution date"
-        date record_date "Corporate record date"
-        decimal amount "Cash dividend payout per share"
-        string currency "Payout currency (e.g. USD, THB)"
+        string description "Discrete cash dividend distributions"
     }
-
     ANALYST_PRICE_TARGET {
-        int id PK
-        int stock_id FK
-        date date "Publish/recorded date"
-        decimal high "Analyst target high"
-        decimal low "Analyst target low"
-        decimal mean "Analyst consensus mean"
-        decimal median "Analyst consensus median"
+        string description "Weekly price targets & recommendation breakdown"
+    }
+    STOCK_EARNING {
+        string description "Quarterly EPS forecasts & announced beat-miss results"
     }
 ```
 
@@ -87,7 +56,7 @@ The master registry of tracked companies across US and international markets.
 | `yf_ticker` | `VARCHAR(20)` | `UNIQUE, INDEX` | Globally unique Yahoo Finance symbol (`AAPL`, `PTT.BK`, `A.BK`). |
 | `name` | `VARCHAR(255)` | `NOT NULL` | Full corporate name. |
 | `exchange` | `VARCHAR(50)` | `NULLABLE` | Listing exchange (`NASDAQ`, `NYSE`, `SET`). |
-| `currency` | `VARCHAR(10)` | `DEFAULT 'USD'` | Currency for pricing and cash flows (`USD`, `THB`). |
+| `currency` | `VARCHAR(10)` | `DEFAULT 'USD'` | Authoritative single source of truth for pricing, dividends, earnings, and analyst targets (`USD`, `THB`). |
 | `sector` | `VARCHAR(100)` | `NULLABLE` | GICS economic sector (used for portfolio sector caps). |
 | `industry` | `VARCHAR(100)` | `NULLABLE` | GICS industry classification. |
 | `is_active` | `BOOLEAN` | `DEFAULT TRUE` | Allows pausing price syncs without deleting historical data. |
@@ -132,12 +101,56 @@ Discrete corporate cash dividend distributions.
 | `ex_date` | `DATE` | `INDEX` | Cutoff date for dividend entitlement. |
 | `payment_date` | `DATE` | `NULLABLE` | Date cash was distributed to shareholders. |
 | `record_date` | `DATE` | `NULLABLE` | Corporate book-close date. |
-| `amount` | `NUMERIC(10, 2)` | `NOT NULL` | Cash amount per share. |
-| `currency` | `VARCHAR(10)` | `DEFAULT 'USD'` | Dividend currency. |
+| `amount` | `NUMERIC(10, 2)` | `NOT NULL` | Cash amount per share (denominated in parent `Stock.currency`). |
 
 * **Table Constraints & Indexes**:
   * `UNIQUE (stock_id, ex_date)`: Guarantees each dividend event is recorded only once per stock.
   * `INDEX (stock_id, ex_date)`: Accelerates multi-year dividend growth and payout ratio calculations.
+
+---
+
+### D. `AnalystPriceTarget` Table
+Periodic (weekly) consensus snapshots of Wall Street and SET institutional analyst price targets and recommendation ratings.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `INTEGER` | `PRIMARY KEY` | Record ID. |
+| `stock_id` | `INTEGER` | `FOREIGN KEY (stock.id)` | Link to parent company. |
+| `date` | `DATE` | `INDEX` | Snapshot recording date (e.g. weekly). |
+| `target_high` | `NUMERIC(10, 2)` | `NULLABLE` | Highest analyst target quote. |
+| `target_low` | `NUMERIC(10, 2)` | `NULLABLE` | Lowest analyst target quote. |
+| `target_mean` | `NUMERIC(10, 2)` | `NULLABLE` | Consensus arithmetic mean target. |
+| `target_median` | `NUMERIC(10, 2)` | `NULLABLE` | Consensus median target. |
+| `strong_buy` | `INTEGER` | `DEFAULT 0` | Count of Strong Buy recommendations. |
+| `buy` | `INTEGER` | `DEFAULT 0` | Count of Buy recommendations. |
+| `hold` | `INTEGER` | `DEFAULT 0` | Count of Hold recommendations. |
+| `sell` | `INTEGER` | `DEFAULT 0` | Count of Sell recommendations. |
+| `strong_sell` | `INTEGER` | `DEFAULT 0` | Count of Strong Sell recommendations. |
+| `total_analysts` | `INTEGER` | `DEFAULT 0` | Total analyst coverage count. |
+| `consensus_score` | `NUMERIC(3, 2)` | `NULLABLE` | Weighted score: (5*SB + 4*B + 3*H + 2*S + 1*SS) / total. |
+
+* **Table Constraints & Indexes**:
+  * `UNIQUE (stock_id, date)`: Enforces one consensus record per stock per snapshot date.
+  * `INDEX (stock_id, date)`: Speeds up historical target revision delta lookups (1w, 1m, 3m).
+
+---
+
+### E. `StockEarning` Table
+Quarterly corporate earnings announcement tracking and consensus EPS beat/miss history.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `INTEGER` | `PRIMARY KEY` | Record ID. |
+| `stock_id` | `INTEGER` | `FOREIGN KEY (stock.id)` | Link to parent company. |
+| `report_date` | `DATE` | `INDEX` | Earnings release date (or scheduled future date). |
+| `fiscal_period` | `VARCHAR(20)` | `NULLABLE` | Quarter label (e.g. `Q3 2026`). |
+| `eps_estimate` | `NUMERIC(10, 4)` | `NULLABLE` | Consensus forecasted Earnings Per Share (denominated in parent `Stock.currency`). |
+| `eps_reported` | `NUMERIC(10, 4)` | `NULLABLE` | Actual announced Earnings Per Share (`NULL` if upcoming; denominated in parent `Stock.currency`). |
+| `surprise_pct` | `NUMERIC(6, 2)` | `NULLABLE` | Beat or miss percentage (e.g. `+4.52%` or `-1.80%`). |
+
+* **Table Constraints & Indexes**:
+  * `UNIQUE (stock_id, report_date)`: Enforces idempotency for each earnings release event.
+  * `INDEX (stock_id, report_date)`: Optimizes next-earnings countdowns and historical beat-rate queries.
 
 ---
 
@@ -178,6 +191,11 @@ Discrete corporate cash dividend distributions.
         * Rather than over-engineering complex multi-tier supply chain ontologies across different industries, each stock will track its **primary upstream dependencies and critical bottlenecks** (e.g., `TSMC Foundry`, `Data Center CapEx`, `Crude Oil Feedstock`, `US Consumer Disposable Income`).
         * **Concentration Detection**: Enables the portfolio engine to detect shared single-point-of-failure (SPOF) risks across seemingly unrelated stocks (e.g., flagging that 5 tech holdings all rely on TSMC advanced node packaging).
         * **Planned Schema**: A lightweight relational link (`StockDependency`: `stock_id`, `dependency_name`, `impact_level`) to keep data entry simple while enabling automated concentration checks.
+
+7. **Single Source of Truth for Currency (`Stock.currency`)**:
+   * All child time-series tables (`StockPrice`, `StockDividend`, `AnalystPriceTarget`, `StockEarning`) inherit their currency denomination implicitly from `Stock.currency`.
+   * Companies report their quotes, historical prices, cash distributions, and earnings in their primary listing currency (`USD` for US, `THB` for Thailand).
+   * Storing `currency` solely on the master `Stock` table eliminates redundant columns across time-series records, avoids data inconsistencies, and simplifies child table schemas.
 
 ---
 

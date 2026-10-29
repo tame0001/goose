@@ -9,7 +9,6 @@ class StockDividendBase(BaseModel):
     payment_date: datetime.date | None = None
     record_date: datetime.date | None = None
     amount: Decimal
-    currency: str = "USD"
 
 
 class StockDividendCreate(StockDividendBase):

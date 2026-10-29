@@ -153,7 +153,6 @@ def _save_ticker_history(
                 stock_id=stock.id,
                 ex_date=p_date,
                 amount=p_div,
-                currency=stock.currency,
             )
             session.add(div_record)
             new_dividends += 1

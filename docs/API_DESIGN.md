@@ -250,11 +250,11 @@ This document defines the REST API contract for the **Goose** platform. The API 
     "ex_date": "2026-09-04",
     "payment_date": "2026-09-20",
     "record_date": "2026-09-05",
-    "amount": "0.80",
-    "currency": "THB"
+    "amount": "0.80"
   }
 ]
 ```
+*(Note: Currency is governed globally by the parent `Stock.currency` attribute).*
 
 ---
 
