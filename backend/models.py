@@ -85,6 +85,7 @@ class Stock(StockBase, table=True):
     dividends: list["StockDividend"] = Relationship(back_populates="stock")
     analyst_targets: list["AnalystPriceTarget"] = Relationship(back_populates="stock")
     earnings: list["StockEarning"] = Relationship(back_populates="stock")
+    guidances: list["StockGuidance"] = Relationship(back_populates="stock")
 
 
 class StockPriceBase(SQLModel):
@@ -204,7 +205,7 @@ class AnalystPriceTarget(AnalystPriceTargetBase, table=True):
 
 
 class StockEarningBase(SQLModel):
-    """Base fields for corporate quarterly earnings announcements and EPS results."""
+    """Corporate quarterly earnings announcements, Wall Street expectations, and actual results."""
 
     stock_id: int = Field(foreign_key="stock.id", index=True)
     report_date: datetime.date = Field(
@@ -215,11 +216,13 @@ class StockEarningBase(SQLModel):
         max_length=20,
         description="Quarter label (e.g. 'Q3 2026' or '2026-09-30')",
     )
+
+    # 1. Bottom-Line EPS (auto-populated by yfinance or enriched manually/agent)
     eps_estimate: Decimal | None = Field(
         default=None,
         decimal_places=4,
         max_digits=10,
-        description="Consensus forecasted Earnings Per Share",
+        description="Consensus forecasted Earnings Per Share (in parent Stock.currency)",
     )
     eps_reported: Decimal | None = Field(
         default=None,
@@ -231,7 +234,38 @@ class StockEarningBase(SQLModel):
         default=None,
         decimal_places=2,
         max_digits=6,
-        description="Earnings surprise percentage (e.g. +4.52 or -1.80)",
+        description="EPS surprise percentage (e.g. +4.52 or -1.80)",
+    )
+
+    # 2. Top-Line Revenue (sourced from Web / 8-K / MCP Agent / UI)
+    rev_estimate: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=14,
+        description="Consensus forecasted Revenue (in parent Stock.currency)",
+    )
+    rev_reported: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=14,
+        description="Actual announced Revenue (in parent Stock.currency)",
+    )
+    rev_surprise_pct: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=6,
+        description="Revenue surprise percentage (e.g. +1.25 or -0.80)",
+    )
+
+    # 3. Provenance & Conflict Prevention
+    data_source: str = Field(
+        default="YFINANCE",
+        max_length=20,
+        description="Source of latest write ('YFINANCE', 'MANUAL', 'AGENT')",
+    )
+    is_verified: bool = Field(
+        default=False,
+        description="If True, automated yfinance background sync will not overwrite this record",
     )
 
 
@@ -246,4 +280,99 @@ class StockEarning(StockEarningBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     stock: Stock | None = Relationship(back_populates="earnings")
+
+
+class StockGuidanceBase(SQLModel):
+    """Executive forward management guidance ranges issued during corporate disclosures."""
+
+    stock_id: int = Field(foreign_key="stock.id", index=True)
+    issue_date: datetime.date = Field(
+        index=True,
+        description="Date guidance was released (usually matching earnings release date)",
+    )
+    target_period: str = Field(
+        max_length=20,
+        description="Target horizon label (e.g. 'Q4 2026' or 'FY 2026')",
+    )
+    period_type: str = Field(
+        default="QUARTER",
+        max_length=20,
+        description="Horizon type: 'QUARTER' or 'FULL_YEAR'",
+    )
+
+    # Revenue Guidance (in parent Stock.currency)
+    rev_low: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=14,
+        description="Management revenue guidance lower bound",
+    )
+    rev_high: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=14,
+        description="Management revenue guidance upper bound",
+    )
+    rev_mid: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=14,
+        description="Management revenue guidance midpoint",
+    )
+
+    # EPS Guidance (in parent Stock.currency)
+    eps_low: Decimal | None = Field(
+        default=None,
+        decimal_places=4,
+        max_digits=10,
+        description="Management EPS guidance lower bound",
+    )
+    eps_high: Decimal | None = Field(
+        default=None,
+        decimal_places=4,
+        max_digits=10,
+        description="Management EPS guidance upper bound",
+    )
+    eps_mid: Decimal | None = Field(
+        default=None,
+        decimal_places=4,
+        max_digits=10,
+        description="Management EPS guidance midpoint",
+    )
+
+    # Revision Momentum & Notes
+    revision_type: str | None = Field(
+        default=None,
+        max_length=20,
+        description="Revision direction: 'INITIAL', 'RAISED', 'LOWERED', or 'REAFFIRMED'",
+    )
+    notes: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Executive commentary or key assumptions (e.g. FX headwind, capex update)",
+    )
+    data_source: str = Field(
+        default="MANUAL",
+        max_length=20,
+        description="Source of guidance entry ('MANUAL', 'AGENT', '8K_PARSER')",
+    )
+
+
+class StockGuidance(StockGuidanceBase, table=True):
+    """Forward management guidance table."""
+
+    __tablename__ = "stock_guidance"
+    __table_args__ = (
+        UniqueConstraint(
+            "stock_id",
+            "issue_date",
+            "target_period",
+            name="uq_stock_guidance_stock_issue_target",
+        ),
+        Index("ix_stock_guidance_stock_issue", "stock_id", "issue_date"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    stock: Stock | None = Relationship(back_populates="guidances")
+
 

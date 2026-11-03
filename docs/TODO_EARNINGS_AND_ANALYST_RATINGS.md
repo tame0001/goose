@@ -61,46 +61,61 @@ Returns historical and forward reporting dates with consensus EPS estimates and 
 
 ---
 
-## 3. Proposed Database Schema (For Next Phase)
+## 3. Implemented Database Schema Models
 
-When we implement this feature, we will need historical snapshot tables to track changes over time:
+The models are defined in `backend/models.py` (pending migration):
 
 ```mermaid
 erDiagram
-    STOCK ||--o{ ANALYST_PRICE_TARGET : "records weekly targets"
-    STOCK ||--o{ ANALYST_RATING_SNAPSHOT : "records weekly recommendation counts"
-    STOCK ||--o{ STOCK_EARNING_REPORT : "records historical & upcoming earnings"
+    STOCK ||--o{ ANALYST_PRICE_TARGET : "records weekly targets & ratings"
+    STOCK ||--o{ STOCK_EARNING : "records quarterly consensus expectations & results"
+    STOCK ||--o{ STOCK_GUIDANCE : "records executive forward guidance ranges"
 
     ANALYST_PRICE_TARGET {
         int id PK
         int stock_id FK
-        date recorded_date "Date of weekly snapshot"
-        decimal high "Target high"
-        decimal low "Target low"
-        decimal mean "Target consensus mean"
-        decimal median "Target consensus median"
+        date date "Snapshot date"
+        decimal target_high "High target"
+        decimal target_low "Low target"
+        decimal target_mean "Consensus mean"
+        decimal target_median "Consensus median"
+        int strong_buy "Strong buy count"
+        int buy "Buy count"
+        int hold "Hold count"
+        int sell "Sell count"
+        int strong_sell "Strong sell count"
+        decimal consensus_score "Weighted 1.0 to 5.0"
     }
 
-    ANALYST_RATING_SNAPSHOT {
+    STOCK_EARNING {
         int id PK
         int stock_id FK
-        date recorded_date "Date of weekly snapshot"
-        int strong_buy "Count of strong buy ratings"
-        int buy "Count of buy ratings"
-        int hold "Count of hold ratings"
-        int sell "Count of sell ratings"
-        int strong_sell "Count of strong sell ratings"
-        decimal consensus_score "Weighted 1.0 to 5.0 score"
-    }
-
-    STOCK_EARNING_REPORT {
-        int id PK
-        int stock_id FK
-        date earnings_date "Report date"
+        date report_date "Earnings announcement date"
         string fiscal_period "e.g. Q3 2026"
-        decimal eps_estimate "Forecasted EPS"
+        decimal eps_estimate "Consensus forecasted EPS"
         decimal eps_reported "Actual announced EPS"
-        decimal surprise_pct "Beat/Miss percentage"
+        decimal surprise_pct "EPS beat/miss %"
+        decimal rev_estimate "Consensus forecasted Revenue"
+        decimal rev_reported "Actual announced Revenue"
+        decimal rev_surprise_pct "Revenue beat/miss %"
+        string data_source "YFINANCE | MANUAL | AGENT"
+        boolean is_verified "Lock against automated feed overwrite"
+    }
+
+    STOCK_GUIDANCE {
+        int id PK
+        int stock_id FK
+        date issue_date "Guidance release date"
+        string target_period "e.g. Q4 2026 or FY 2026"
+        string period_type "QUARTER | FULL_YEAR"
+        decimal rev_low "Revenue guidance low"
+        decimal rev_high "Revenue guidance high"
+        decimal rev_mid "Revenue guidance midpoint"
+        decimal eps_low "EPS guidance low"
+        decimal eps_high "EPS guidance high"
+        decimal eps_mid "EPS guidance midpoint"
+        string revision_type "INITIAL | RAISED | LOWERED | REAFFIRMED"
+        string notes "Commentary & assumptions"
     }
 ```
 
@@ -112,7 +127,10 @@ erDiagram
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/stocks/{identifier}/targets` | Historical analyst price targets and latest revision delta |
 | `GET` | `/api/v1/stocks/{identifier}/ratings` | Historical analyst recommendation breakdown & upgrades/downgrades |
-| `GET` | `/api/v1/stocks/{identifier}/earnings` | Earnings calendar, forward quarterly estimates, and surprise history |
+| `GET` | `/api/v1/stocks/{identifier}/earnings` | Earnings calendar, revenue & EPS estimates, and surprise history |
+| `POST` | `/api/v1/stocks/{identifier}/earnings` | Manual / Agent entry/verification of earnings actuals and revenue |
+| `GET` | `/api/v1/stocks/{identifier}/guidance` | Retrieve management guidance history and track record |
+| `POST` | `/api/v1/stocks/{identifier}/guidance` | Manual / Agent / MCP entry of executive guidance ranges |
 | `POST` | `/api/v1/stocks/sync/fundamentals` | Trigger weekly batch refresh of fundamentals & analyst data |
 
 ---
@@ -120,8 +138,10 @@ erDiagram
 ## 5. Deletion Checklist
 
 Before deleting this file, ensure:
-- [ ] Database tables (`AnalystPriceTarget`, `AnalystRatingSnapshot`, `StockEarningReport`) migrated and active in SQLite.
+- [ ] Database migration generated and applied for `StockGuidance` and updated `StockEarning`.
 - [ ] Weekly synchronization worker implemented in `backend/app/services/`.
 - [ ] API routes implemented under `/api/v1/stocks/...`.
+- [ ] Web client displays target momentum, upcoming earnings dates, and guidance tracker.
+- [ ] Permanent architecture notes migrated into `DATABASE_DESIGN.md` and `API_DESIGN.md`.
 - [ ] Web client displays target momentum and upcoming earnings dates.
 - [ ] Permanent architecture notes migrated into `DATABASE_DESIGN.md` and `API_DESIGN.md`.

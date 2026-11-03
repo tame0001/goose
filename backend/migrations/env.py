@@ -11,6 +11,7 @@ from models import (
     Stock,
     StockDividend,
     StockEarning,
+    StockGuidance,
     StockPrice,
 )
 

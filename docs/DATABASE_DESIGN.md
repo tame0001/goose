@@ -22,7 +22,8 @@ erDiagram
     STOCK ||--o{ STOCK_PRICE : "has daily historical OHLCV prices"
     STOCK ||--o{ STOCK_DIVIDEND : "has cash dividend payouts"
     STOCK ||--o{ ANALYST_PRICE_TARGET : "has weekly consensus targets & ratings"
-    STOCK ||--o{ STOCK_EARNING : "has quarterly EPS estimates & surprises"
+    STOCK ||--o{ STOCK_EARNING : "has quarterly consensus expectations & results"
+    STOCK ||--o{ STOCK_GUIDANCE : "issues forward management outlook ranges"
 
     STOCK {
         string description "Master company registry & live price quote"
@@ -37,7 +38,10 @@ erDiagram
         string description "Weekly price targets & recommendation breakdown"
     }
     STOCK_EARNING {
-        string description "Quarterly EPS forecasts & announced beat-miss results"
+        string description "Quarterly EPS & Revenue forecasts and actual beat/miss"
+    }
+    STOCK_GUIDANCE {
+        string description "Management forward-looking ranges for Next Quarter & FY"
     }
 ```
 
@@ -136,7 +140,7 @@ Periodic (weekly) consensus snapshots of Wall Street and SET institutional analy
 ---
 
 ### E. `StockEarning` Table
-Quarterly corporate earnings announcement tracking and consensus EPS beat/miss history.
+Quarterly corporate earnings announcement tracking, Wall Street top-line/bottom-line consensus expectations, and realized beat/miss history.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
@@ -144,13 +148,44 @@ Quarterly corporate earnings announcement tracking and consensus EPS beat/miss h
 | `stock_id` | `INTEGER` | `FOREIGN KEY (stock.id)` | Link to parent company. |
 | `report_date` | `DATE` | `INDEX` | Earnings release date (or scheduled future date). |
 | `fiscal_period` | `VARCHAR(20)` | `NULLABLE` | Quarter label (e.g. `Q3 2026`). |
-| `eps_estimate` | `NUMERIC(10, 4)` | `NULLABLE` | Consensus forecasted Earnings Per Share (denominated in parent `Stock.currency`). |
-| `eps_reported` | `NUMERIC(10, 4)` | `NULLABLE` | Actual announced Earnings Per Share (`NULL` if upcoming; denominated in parent `Stock.currency`). |
-| `surprise_pct` | `NUMERIC(6, 2)` | `NULLABLE` | Beat or miss percentage (e.g. `+4.52%` or `-1.80%`). |
+| `eps_estimate` | `NUMERIC(10, 4)` | `NULLABLE` | Consensus forecasted EPS (denominated in parent `Stock.currency`). |
+| `eps_reported` | `NUMERIC(10, 4)` | `NULLABLE` | Actual announced EPS (`NULL` if upcoming; denominated in parent `Stock.currency`). |
+| `surprise_pct` | `NUMERIC(6, 2)` | `NULLABLE` | EPS beat or miss percentage (e.g. `+4.52%` or `-1.80%`). |
+| `rev_estimate` | `NUMERIC(14, 2)` | `NULLABLE` | Consensus forecasted Revenue (denominated in parent `Stock.currency`). |
+| `rev_reported` | `NUMERIC(14, 2)` | `NULLABLE` | Actual announced Revenue (denominated in parent `Stock.currency`). |
+| `rev_surprise_pct` | `NUMERIC(6, 2)` | `NULLABLE` | Revenue beat or miss percentage (e.g. `+1.20%` or `-0.85%`). |
+| `data_source` | `VARCHAR(20)` | `DEFAULT 'YFINANCE'` | Data provenance indicator (`YFINANCE`, `MANUAL`, `AGENT`). |
+| `is_verified` | `BOOLEAN` | `DEFAULT FALSE` | Protection flag: if `TRUE`, automated yfinance background sync will not overwrite row. |
 
 * **Table Constraints & Indexes**:
   * `UNIQUE (stock_id, report_date)`: Enforces idempotency for each earnings release event.
   * `INDEX (stock_id, report_date)`: Optimizes next-earnings countdowns and historical beat-rate queries.
+
+---
+
+### F. `StockGuidance` Table
+Forward management guidance ranges and outlook commentary announced during corporate disclosures and earnings calls.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `INTEGER` | `PRIMARY KEY` | Record ID. |
+| `stock_id` | `INTEGER` | `FOREIGN KEY (stock.id)` | Link to parent company. |
+| `issue_date` | `DATE` | `INDEX` | Date guidance was announced to the public. |
+| `target_period` | `VARCHAR(20)` | `NOT NULL` | Target horizon label (e.g. `Q4 2026` or `FY 2026`). |
+| `period_type` | `VARCHAR(20)` | `DEFAULT 'QUARTER'` | Horizon type (`QUARTER` or `FULL_YEAR`). |
+| `rev_low` | `NUMERIC(14, 2)` | `NULLABLE` | Management revenue guidance lower bound. |
+| `rev_high` | `NUMERIC(14, 2)` | `NULLABLE` | Management revenue guidance upper bound. |
+| `rev_mid` | `NUMERIC(14, 2)` | `NULLABLE` | Management revenue guidance midpoint. |
+| `eps_low` | `NUMERIC(10, 4)` | `NULLABLE` | Management EPS guidance lower bound. |
+| `eps_high` | `NUMERIC(10, 4)` | `NULLABLE` | Management EPS guidance upper bound. |
+| `eps_mid` | `NUMERIC(10, 4)` | `NULLABLE` | Management EPS guidance midpoint. |
+| `revision_type` | `VARCHAR(20)` | `NULLABLE` | Revision direction (`INITIAL`, `RAISED`, `LOWERED`, `REAFFIRMED`). |
+| `notes` | `VARCHAR(500)` | `NULLABLE` | Executive commentary (e.g. gross margins, supply constraints). |
+| `data_source` | `VARCHAR(20)` | `DEFAULT 'MANUAL'` | Input origin (`MANUAL`, `AGENT`, `8K_PARSER`). |
+
+* **Table Constraints & Indexes**:
+  * `UNIQUE (stock_id, issue_date, target_period)`: Permits distinct guidance records issued on the same day for different targets (e.g. simultaneous Q4 and full-year guidance).
+  * `INDEX (stock_id, issue_date)`: Speeds up retrieval of the latest executive guidance package.
 
 ---
 
@@ -193,9 +228,14 @@ Quarterly corporate earnings announcement tracking and consensus EPS beat/miss h
         * **Planned Schema**: A lightweight relational link (`StockDependency`: `stock_id`, `dependency_name`, `impact_level`) to keep data entry simple while enabling automated concentration checks.
 
 7. **Single Source of Truth for Currency (`Stock.currency`)**:
-   * All child time-series tables (`StockPrice`, `StockDividend`, `AnalystPriceTarget`, `StockEarning`) inherit their currency denomination implicitly from `Stock.currency`.
+   * All child time-series tables (`StockPrice`, `StockDividend`, `AnalystPriceTarget`, `StockEarning`, `StockGuidance`) inherit their currency denomination implicitly from `Stock.currency`.
    * Companies report their quotes, historical prices, cash distributions, and earnings in their primary listing currency (`USD` for US, `THB` for Thailand).
    * Storing `currency` solely on the master `Stock` table eliminates redundant columns across time-series records, avoids data inconsistencies, and simplifies child table schemas.
+
+8. **Dual-Source Ingestion & Conflict Resolution Strategy (yfinance vs. Web/Agent/Manual)**:
+   * **Domain Separation**: Realized quarterly performance and Wall Street consensus live in `StockEarning`, while executive forward ranges live in `StockGuidance`. Because management guidance is a forward range and never reported by standard yfinance tables, `StockGuidance` is protected from automated feed overwrites.
+   * **Non-Destructive Patching in `StockEarning`**: Automated background syncs from `yfinance` only update EPS fields (`eps_estimate`, `eps_reported`, `surprise_pct`) and will never nullify or overwrite top-line revenue fields (`rev_estimate`, `rev_reported`) populated by user entry or MCP agents.
+   * **Human/Agent Override Lock (`is_verified`)**: If a record has `is_verified = TRUE`, the automated background synchronization engine skips modifying that record entirely, ensuring user-inspected data remains authoritative.
 
 ---
 
